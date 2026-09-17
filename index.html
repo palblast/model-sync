@@ -1,0 +1,2195 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WorkBuddy 模型导入工具</title>
+<style>
+:root {
+  --bg: #f5f6f8; --card: #ffffff; --border: #e2e4e9;
+  --text: #1a1a2e; --text2: #6b7280;
+  --accent: #6366f1; --accent-hover: #4f46e5;
+  --green: #10b981; --red: #ef4444; --yellow: #f59e0b;
+  --tag-bg: #eef2ff; --tag-text: #4338ca;
+  --radius: 10px; --shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+.header { text-align: center; margin-bottom: 20px; }
+.header h1 { font-size: clamp(18px, 2.2vw, 26px); font-weight: 700; }
+.header p { color: var(--text2); font-size: clamp(12px, 1.4vw, 14px); }
+
+/* 状态栏 */
+.status-bar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 14px; box-shadow: var(--shadow); }
+.status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; background: var(--border); }
+.status-dot.ok { background: var(--green); }
+.status-dot.warn { background: var(--yellow); }
+.status-dot.err { background: var(--red); }
+.status-info { flex: 1; font-size: 14px; }
+.status-info .label { font-weight: 600; }
+.status-info .detail { color: var(--text2); font-size: 13px; }
+
+/* 操作按钮 */
+.actions { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+.btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { background: #f0f1f4; }
+.btn-green { background: var(--green); color: #fff; }
+.btn-green:hover { opacity: .9; }
+.btn-danger { background: var(--red); color: #fff; }
+.btn-danger:hover { opacity: .9; }
+.btn-sm { padding: 5px 12px; font-size: 12px; }
+.spin { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 卡片 */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: clamp(12px, 1.8vw, 20px); margin-bottom: 14px; box-shadow: var(--shadow); }
+.card h2 { font-size: clamp(14px, 1.4vw, 16px); font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+/* -------- Tab 样式 -------- */
+.tab-bar { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.tab { padding: clamp(5px, 0.7vw, 8px) clamp(10px, 1.4vw, 16px); font-size: clamp(12px, 1.2vw, 14px); font-weight: 600; border: 1px solid var(--border); background: #f8f9fb; color: var(--text2); cursor: pointer; border-radius: 6px; white-space: nowrap; transition: all .15s; }
+.tab:hover { background: #f0f1f4; color: var(--text); border-color: #c7d2fe; }
+/* 提供商 Tab - 蓝色系 */
+#providerTabBar .tab { border: 1px solid #e0e7ff; background: #f0f0ff; color: #4338ca; }
+#providerTabBar .tab:hover { background: #e0e7ff; border-color: #c7d2fe; }
+#providerTabBar .tab.active { background: #4338ca; color: #fff; border-color: #4338ca; box-shadow: 0 1px 3px rgba(67,56,202,0.3); }
+/* 厂商 Tab - 绿色系 */
+#vendorTabBar .tab { border: 1px solid #d1fae5; background: #ecfdf5; color: #065f46; }
+#vendorTabBar .tab:hover { background: #d1fae5; border-color: #a7f3d0; }
+#vendorTabBar .tab.active { background: #065f46; color: #fff; border-color: #065f46; box-shadow: 0 1px 3px rgba(6,95,70,0.3); }
+/* 已导入模型 Tab - 紫色系 */
+#importedVendorTabBar .tab { border: 1px solid #e9d5ff; background: #faf5ff; color: #7e22ce; }
+#importedVendorTabBar .tab:hover { background: #e9d5ff; border-color: #d8b4fe; }
+#importedVendorTabBar .tab.active { background: #7e22ce; color: #fff; border-color: #7e22ce; box-shadow: 0 1px 3px rgba(126,34,206,0.3); }
+
+/* 统计栏 */
+.stat-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f8f9fb; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
+.stat-bar .count { font-weight: 700; color: var(--accent); }
+
+/* 搜索 */
+.search-box { width: 100%; padding: 9px 14px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; margin-bottom: 12px; outline: none; transition: border .15s; }
+.search-box:focus { border-color: var(--accent); }
+
+/* 模型列表 */
+.model-list { }
+.model-row { display: flex; align-items: center; gap: 8px; padding: clamp(5px, 0.8vw, 8px) clamp(8px, 1.2vw, 14px); border-bottom: 1px solid #f0f1f4; font-size: clamp(12px, 1.2vw, 14px); }
+.model-row:last-child { border-bottom: none; }
+.model-row input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; }
+.model-id { flex: 1; word-break: break-all; }
+.model-tags { display: flex; gap: 3px; flex-shrink: 0; }
+.model-vendor-label { display: inline-block; font-size: 11px; color: var(--text2); background: #f0f1f4; padding: 1px 6px; border-radius: 4px; margin-right: 4px; }
+
+.tag { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 11px; font-weight: 600; background: var(--tag-bg); color: var(--tag-text); }
+.tag.on { background: #d1fae5; color: #065f46; }
+
+/* 已选模型浮窗 */
+.selection-panel { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 1200px; background: var(--card); border-top: 2px solid var(--accent); box-shadow: 0 -4px 20px rgba(0,0,0,0.1); z-index: 100; border-radius: 12px 12px 0 0; max-height: 50vh; display: flex; flex-direction: column; }
+/* 当已选面板显示时给 body 增加底部内边距，避免遮挡页面底部内容 */
+body.has-selection { padding-bottom: 200px; }
+/* 顶部定位（鼠标在下半区时触发） */
+.selection-panel.top { bottom: auto; top: 0; border-radius: 0 0 12px 12px; border-top: none; border-bottom: 2px solid var(--accent); box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+.selection-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; cursor: pointer; font-size: 14px; user-select: none; }
+.selection-header:hover { background: #f8f9fb; }
+.selection-body { overflow-y: auto; padding: 0 20px 16px; }
+.selection-list { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; max-height: 200px; overflow-y: auto; }
+.selection-item { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px 4px 10px; background: #f0f1f4; border-radius: 6px; font-size: 12px; }
+.selection-item .sel-vendor { color: var(--text2); margin-right: 2px; }
+.selection-item .sel-provider { color: #4338ca; background: #e0e7ff; font-size: 10px; font-weight: 600; padding: 0 5px; border-radius: 3px; }
+.selection-item .sel-remove { cursor: pointer; color: var(--text2); font-size: 14px; line-height: 1; padding: 0 2px; border-radius: 3px; }
+.selection-item .sel-remove:hover { color: var(--red); background: #fee2e2; }
+.selection-actions { display: flex; gap: 8px; align-items: center; }
+/* 已导入模型网格布局 */
+.imported-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.imported-group { grid-column: 1 / -1; margin-top: 8px; }
+.imported-group:first-child { margin-top: 0; }
+.imported-group-label { display: inline-block; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 10px; border-radius: 4px; margin-bottom: 6px; }
+.imported-item { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; background: #f8f9fb; border: 1px solid var(--border); border-radius: 6px; font-size: 12px; }
+.imported-item .model-name { font-weight: 600; word-break: break-all; line-height: 1.3; }
+.imported-item .model-caps { display: flex; gap: 3px; flex-wrap: wrap; }
+.imported-item .model-caps .tag { font-size: 10px; padding: 1px 5px; }
+.imported-item .model-actions { display: flex; gap: 4px; align-items: center; margin-top: 2px; }
+.imported-item .test-btn { padding: 2px 8px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; background: #e0e7ff; color: #4338ca; transition: all .15s; }
+.imported-item .test-btn:hover { background: #c7d2fe; }
+.imported-item .test-btn:disabled { opacity: .5; cursor: not-allowed; }
+.imported-item .del-btn { padding: 2px 6px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; background: #fee2e2; color: #dc2626; transition: all .15s; }
+.imported-item .del-btn:hover { background: #fecaca; }
+.imported-item .edit-btn { padding: 2px 6px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; background: #e0e7ff; color: #4338ca; transition: all .15s; }
+.imported-item .edit-btn:hover { background: #c7d2fe; }
+.imported-item .switch-btn { padding: 2px 6px; font-size: 11px; border: none; border-radius: 4px; cursor: pointer; background: #fef3c7; color: #b45309; transition: all .15s; }
+.imported-item .switch-btn:hover { background: #fde68a; }
+.imported-item .switch-btn.active { background: #f59e0b; color: #fff; box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
+.imported-item .switch-btn.active:hover { background: #d97706; }
+.imported-item .tag.conflict { font-size: 10px; padding: 1px 6px; background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; margin-left: 6px; font-weight: 600; }
+.imported-item .effort-tag { font-size: 10px; padding: 1px 6px; background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; border-radius: 4px; cursor: pointer; font-weight: 600; transition: all .15s; }
+.imported-item .effort-tag:hover { background: #c7d2fe; }
+.sk-item { padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 8px; cursor: pointer; transition: all .15s; }
+.sk-item:hover { border-color: var(--accent); background: #f5f7ff; }
+.sk-item.active { border-color: var(--accent); background: #eef2ff; }
+.sk-item .sk-name { font-weight: 600; font-size: 13px; }
+.sk-item .sk-cur { font-size: 10px; color: #fff; background: var(--accent); padding: 1px 6px; border-radius: 3px; margin-left: 4px; }
+.sk-item .sk-meta { font-size: 11px; color: var(--text2); margin-top: 2px; word-break: break-all; }
+/* 批量删除：复选框 + 底部操作栏 */
+.imported-item .sel-check { display: none; align-items: center; }
+.manage-on .imported-item .sel-check { display: flex; }
+.manage-on .imported-item .model-name { cursor: pointer; }
+.manage-on .imported-item.selected { border-color: var(--accent); background: #eef2ff; }
+.imported-item .sel-check input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+.batch-bar { display: none; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; font-size: 12px; color: #7e22ce; }
+.manage-on .batch-bar { display: flex; }
+.batch-bar .select-all-label { display: flex; align-items: center; gap: 6px; cursor: pointer; margin-right: auto; }
+.batch-bar .select-all-label input { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
+.batch-bar .sel-count { font-weight: 700; }
+.imported-item .test-result { font-size: 11px; font-weight: 600; }
+.imported-item .test-result.ok { color: var(--green); }
+.imported-item .test-result.err { color: var(--red); }
+.imported-item .test-result.loading { color: var(--accent); }
+
+/* 同步结果 */
+.sync-result { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px; margin-bottom: 14px; white-space: pre-wrap; font-family: monospace; font-size: 12px; line-height: 1.5; }
+.sync-result.err { background: #fef2f2; border-color: #fecaca; }
+
+/* 日志 */
+.log-panel { background: #1a1a2e; color: #e2e8f0; border-radius: var(--radius); padding: 12px; font-family: "Cascadia Code", "Fira Code", monospace; font-size: 12px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5; margin-top: 6px; }
+
+/* Toast */
+.toast { position: fixed; top: 20px; right: 20px; padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600; color: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 999; animation: slideIn .3s ease; }
+.toast.ok { background: var(--green); }
+.toast.err { background: var(--red); }
+@keyframes slideIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.empty { text-align: center; padding: 30px; color: var(--text2); font-size: 14px; }
+.empty p { margin-top: 6px; }
+
+@media (max-width: 600px) {
+  .model-row { font-size: 12px; padding: 5px 10px; }
+  .tab { padding: 6px 12px; font-size: 12px; }
+}
+
+/* 模态框 */
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; }
+.modal-content { background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:500px; box-shadow:0 4px 20px rgba(0,0,0,0.15); }
+.modal-content h3 { margin-bottom:16px; font-size:18px; }
+.form-group { margin-bottom:12px; }
+.form-group label { display:block; margin-bottom:4px; font-weight:600; font-size:14px; }
+.form-group input, .form-group select { width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+.form-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:16px; }
+
+/* 可拖拽调整大小的日志模态框 */
+.log-modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; display:flex; align-items:center; justify-content:center; }
+.log-modal-window { position:relative; background:var(--card); border-radius:var(--radius); box-shadow:0 4px 20px rgba(0,0,0,0.15); width:80%; height:70vh; min-width:320px; min-height:200px; max-width:98vw; max-height:98vh; display:flex; flex-direction:column; overflow:hidden; }
+.log-modal-header { display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid var(--border); flex-shrink:0; cursor:move; user-select:none; }
+.log-modal-header h3 { font-size:16px; font-weight:700; }
+.log-modal-body { flex:1; overflow:hidden; padding:12px; display:flex; }
+.log-modal-content { background:#1a1a2e; color:#e2e8f0; border-radius:8px; padding:12px; font-family:"Cascadia Code","Fira Code",monospace; font-size:12px; white-space:pre-wrap; line-height:1.5; overflow-y:auto; width:100%; height:100%; }
+.resize-handle { position:absolute; z-index:210; }
+.resize-e { top:0; right:0; width:8px; height:100%; cursor:ew-resize; }
+.resize-s { bottom:0; left:0; height:8px; width:100%; cursor:ns-resize; }
+.resize-se { bottom:0; right:0; width:16px; height:16px; cursor:nwse-resize; z-index:211; }
+.resize-se::after { content:""; position:absolute; right:3px; bottom:3px; width:8px; height:8px; border-right:2px solid var(--text2); border-bottom:2px solid var(--text2); }
+.log-modal-body.dragging, .log-modal-body.resizing { pointer-events:none; }
+
+/* 提供商管理列表 */
+.pm-item { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+.pm-item:last-of-type { border-bottom:none; }
+.pm-item.dragging { opacity:0.4; background:#eef2ff; }
+.pm-item.drag-over-top { box-shadow: inset 0 2px 0 0 var(--accent); }
+.pm-item.drag-over-bottom { box-shadow: inset 0 -2px 0 0 var(--accent); }
+.pm-handle { cursor:grab; color:var(--text2); font-size:16px; user-select:none; padding:2px 4px; border-radius:3px; flex-shrink:0; }
+.pm-handle:hover { color:var(--text); background:#f0f1f4; }
+.pm-handle:active { cursor:grabbing; }
+.pm-info { flex:1; min-width:0; }
+.pm-name { font-weight:700; font-size:14px; }
+.pm-meta { color:var(--text2); font-size:12px; margin-top:2px; word-break:break-all; }
+.pm-status { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.pm-status .tag { font-size:11px; padding:2px 8px; }
+.pm-toggle { position:relative; width:40px; height:22px; flex-shrink:0; }
+.pm-toggle input { opacity:0; width:0; height:0; }
+.pm-toggle .slider { position:absolute; inset:0; background:#ccc; border-radius:11px; cursor:pointer; transition:.2s; }
+.pm-toggle .slider::before { content:""; position:absolute; height:16px; width:16px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+.pm-toggle input:checked + .slider { background:var(--accent); }
+.pm-toggle input:checked + .slider::before { transform:translateX(18px); }
+.pm-apikey { width:180px; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; }
+.pm-del { background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px; padding:2px 6px; border-radius:4px; }
+.pm-del:hover { color:var(--red); background:#fee2e2; }
+.pm-edit { background:none; border:none; color:var(--text2); cursor:pointer; font-size:16px; padding:2px 6px; border-radius:4px; }
+.pm-edit:hover { color:var(--accent); background:#e0e7ff; }
+.pm-save { margin-top:12px; display:flex; justify-content:flex-end; }
+.pm-item.editing { background:#f8f9fb; border:1px solid var(--accent); }
+.pm-edit-form { flex:1; display:flex; flex-direction:column; gap:8px; }
+.pm-edit-row { display:flex; align-items:center; gap:8px; }
+.pm-edit-row label { width:80px; font-size:12px; font-weight:600; color:var(--text2); text-align:right; flex-shrink:0; }
+.pm-edit-row input, .pm-edit-row select { flex:1; padding:4px 8px; border:1px solid var(--border); border-radius:4px; font-size:12px; }
+.pm-edit-row input:focus, .pm-edit-row select:focus { border-color:var(--accent); outline:none; }
+.pm-edit-actions { display:flex; gap:6px; justify-content:flex-end; margin-top:4px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>WorkBuddy 模型导入工具</h1>
+    <p>同步 → 按厂商标签页切换 → 勾选导入</p>
+  </div>
+
+  <!-- 状态栏 -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot" id="statusDot"></div>
+    <div class="status-info">
+      <div class="label" id="statusLabel">待同步</div>
+      <div class="detail" id="statusDetail">点击同步按钮拉取最新模型列表</div>
+    </div>
+  </div>
+
+  <!-- 已导入模型（紧跟在状态栏下方） -->
+  <div class="card">
+    <h2>&#x2705; 已导入模型 (<span id="importedCount">-</span>)
+      <span style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+        <button class="btn btn-sm btn-secondary" id="btnRefreshImported" onclick="refreshImportedModels()" title="重新读取 models.json 文件并刷新已导入模型列表">&#x21bb; 刷新</button>
+        <button class="btn btn-sm btn-secondary" id="btnManageImported" onclick="toggleManageMode()">&#x2699; 管理</button>
+        <button class="btn btn-sm btn-secondary" id="btnBatchDelete" onclick="batchDeleteImported()" style="display:none;">&#x2716; 批量删除</button>
+        <button class="btn btn-sm btn-secondary" id="btnTestAll" onclick="testAllModels()" style="display:none;">&#x26a1; 一键测试所有</button>
+        <span class="test-all-summary" id="testAllSummary" style="display:none;font-size:12px;font-weight:400;"></span>
+      </span>
+    </h2>
+    <!-- 提供商 Tab -->
+    <div class="tab-bar" id="importedVendorTabBar"></div>
+    <!-- 批量删除操作栏 -->
+    <div class="batch-bar" id="batchBar">
+      <label class="select-all-label" title="一键全选当前显示的模型">
+        <input type="checkbox" id="batchSelectAll" onchange="toggleSelectAllImported(this.checked)">
+        <span>全选</span>
+      </label>
+      <button class="btn btn-sm btn-secondary" onclick="invertSelectImported()" title="反向勾选当前显示的模型">&#x21c5; 反选</button>
+      <span>已选 <span class="sel-count" id="batchSelCount">0</span> 个</span>
+      <button class="btn btn-sm btn-danger" onclick="batchDeleteImported()">&#x2716; 删除选中</button>
+    </div>
+    <div id="importedModels"><div class="empty">暂无已导入的模型</div></div>
+    <!-- 批量测试进度 -->
+    <div id="testAllProgress" style="display:none;margin-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:4px;">
+        <span id="testAllStatus">就绪</span>
+        <span id="testAllStats">0 / 0</span>
+      </div>
+      <div style="height:4px;background:#e2e4e9;border-radius:4px;overflow:hidden;">
+        <div id="testAllBar" style="height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .3s;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 操作按钮 -->
+  <div class="actions">
+    <button class="btn btn-primary" onclick="showAddProviderModal()">&#x2795; 添加提供商</button>
+    <button class="btn btn-secondary" onclick="showProvidersManager()">&#x2699; 管理提供商</button>
+    <button class="btn btn-primary" id="btnSync" onclick="triggerSync(false)">&#x21bb; 同步并拉取模型</button>
+    <button class="btn btn-secondary" id="btnDryRun" onclick="triggerSync(true)">&#x2699; 演练模式</button>
+    <button class="btn btn-green" id="btnImport" onclick="importSelected()" disabled>&#x2714; 导入选中 (<span id="selectedCount">0</span>)</button>
+    <button class="btn btn-secondary" onclick="showLogModal()">&#x1f4cb; 查看日志</button>
+  </div>
+
+  <!-- 模型选择区 -->
+  <div class="card" id="modelSelectCard">
+    <h2>&#x1f916; 选择要导入的模型</h2>
+
+    <!-- 提供商 Tab -->
+    <div class="tab-bar" id="providerTabBar"></div>
+
+    <!-- 原始厂商 Tab -->
+    <div class="tab-bar" id="vendorTabBar"></div>
+
+    <!-- 搜索 -->
+    <input class="search-box" id="searchBox" placeholder="搜索模型名称..." oninput="filterModels()">
+
+    <!-- 统计栏 -->
+    <div class="stat-bar">
+      <span>已选 <span class="count" id="selectedCountBar">0</span> 个模型</span>
+      <span>
+        <button class="btn btn-sm btn-secondary" onclick="selectAll()">全选</button>
+        <button class="btn btn-sm btn-secondary" onclick="deselectAll()">取消全选</button>
+      </span>
+    </div>
+
+    <!-- 模型列表容器 -->
+    <div id="modelListContainer"><div class="empty">请先点击"同步并拉取模型"<p>同步完成后，这里会按厂商标签页展示所有模型</p></div></div>
+  </div>
+
+  <!-- 已选模型浮窗 -->
+  <div id="selectionPanel" class="selection-panel" style="display:none;">
+    <div class="selection-header" onclick="toggleSelectionPanel()">
+      <span>&#x1f4cb; 已选 <strong id="panelSelectedCount">0</strong> 个模型</span>
+      <span id="panelToggleIcon" style="font-size:12px;transition:transform .2s;">&#x25b2;</span>
+    </div>
+    <div class="selection-body" id="selectionBody">
+      <div class="selection-list" id="selectionList"></div>
+      <div class="selection-actions">
+        <button class="btn btn-green" onclick="importSelected()" id="panelImportBtn">&#x2714; 导入选中</button>
+        <button class="btn btn-secondary btn-sm" onclick="clearSelection()">&#x2716; 清除全部</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 同步结果 -->
+  <div id="syncResult" style="display:none;"></div>
+
+</div>
+
+<!-- 添加提供商模态框 -->
+<div id="addProviderModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; display:none; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:500px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <h3 style="margin-bottom:16px; font-size:18px;">添加新的AI提供商</h3>
+    <form id="addProviderForm" onsubmit="return addProvider(event)">
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">提供商ID *</label>
+        <input type="text" id="providerId" required placeholder="例如: my-provider" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">显示名称 *</label>
+        <input type="text" id="providerName" required placeholder="例如: My AI Provider" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">协议类型 *</label>
+        <select id="providerProtocol" required style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+          <option value="openai">OpenAI 兼容</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="gemini">Google Gemini</option>
+          <option value="ollama">Ollama (本地)</option>
+          <option value="cloudflare">Cloudflare Workers AI</option>
+        </select>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">API Base URL *</label>
+        <input type="url" id="providerBaseUrl" required placeholder="例如: https://api.example.com/v1" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">显示名称前缀（可选）</label>
+        <input type="text" id="providerNamePrefix" placeholder="例如: 硅基流动/" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+        <div style="font-size:12px; color:var(--text2); margin-top:4px;">同步时自动为模型显示名称加前缀，不影响申请ID。</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">显示名称后缀（可选）</label>
+        <input type="text" id="providerNameSuffix" placeholder="例如: -pro" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+        <div style="font-size:12px; color:var(--text2); margin-top:4px;">同步时自动为模型显示名称加后缀，不影响申请ID。</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">API Key</label>
+        <input type="password" id="providerApiKey" placeholder="可选，某些提供商需要" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+      </div>
+      <div style="margin-bottom:16px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="providerEnabled" style="width:16px; height:16px;">
+          <span style="font-size:14px;">启用此提供商</span>
+        </label>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="hideAddProviderModal()">取消</button>
+        <button type="submit" class="btn btn-primary">添加提供商</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 编辑已导入模型模态框 -->
+<div id="editModelModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:210; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:480px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <h3 style="margin-bottom:16px; font-size:18px;">编辑模型</h3>
+    <div style="margin-bottom:12px;">
+      <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">申请ID（实际请求使用）</label>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <input type="text" id="editModelId" disabled style="flex:1; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px; background:var(--bg); color:var(--text2);">
+        <button type="button" class="btn btn-sm btn-secondary" id="editModelIdUnlockBtn" onclick="unlockModelId()" title="解锁后才能修改申请ID">&#x1f512; 修改ID</button>
+      </div>
+      <div style="font-size:12px; color:var(--text2); margin-top:4px;">修改申请ID会影响实际请求，请谨慎操作。</div>
+    </div>
+    <div style="margin-bottom:16px;">
+      <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">显示名称（仅界面显示）</label>
+      <input type="text" id="editModelName" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;" placeholder="留空则显示为申请ID">
+      <div style="font-size:12px; color:var(--text2); margin-top:4px;">修改显示名称不影响实际请求的模型。</div>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="hideEditModelModal()">取消</button>
+      <button type="button" class="btn btn-primary" onclick="saveImportedModel()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 切换模型提供商/Key 模态框 -->
+<div id="switchKeyModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:215; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:480px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <h3 style="margin-bottom:8px; font-size:18px;">切换模型使用的提供商</h3>
+    <div style="font-size:13px; color:var(--text2); margin-bottom:12px;">
+      模型 <span id="switchModelId" style="font-weight:600; color:var(--text);"></span>
+    </div>
+    <div id="switchKeyList" style="max-height:320px; overflow-y:auto; margin-bottom:16px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="hideSwitchKeyModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 思考强度选择模态框 -->
+<div id="effortModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:220; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:400px; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <h3 style="margin-bottom:8px; font-size:18px;">选择思考强度</h3>
+    <div style="font-size:13px; color:var(--text2); margin-bottom:12px;">
+      模型 <span id="effortModelId" style="font-weight:600; color:var(--text);"></span>
+    </div>
+    <div id="effortList" style="max-height:320px; overflow-y:auto; margin-bottom:16px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary" onclick="hideEffortModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 查看日志模态框（可拖拽调整大小） -->
+<div id="logModal" class="log-modal-overlay" style="display:none;">
+  <div id="logModalWindow" class="log-modal-window">
+    <div class="log-modal-header">
+      <h3>&#x1f4cb; 同步日志</h3>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button class="btn btn-sm btn-secondary" onclick="refreshLogModal()">&#x21bb; 刷新</button>
+        <button class="btn btn-sm btn-secondary" onclick="hideLogModal()">&#x2716; 关闭</button>
+      </div>
+    </div>
+    <div class="log-modal-body">
+      <div id="logModalPanel" class="log-modal-content">加载中...</div>
+    </div>
+    <!-- 拖拽调整大小的把手 -->
+    <div class="resize-handle resize-e" data-dir="e" title="拖动调整宽度"></div>
+    <div class="resize-handle resize-s" data-dir="s" title="拖动调整高度"></div>
+    <div class="resize-handle resize-se" data-dir="se" title="拖动调整大小"></div>
+  </div>
+</div>
+
+<!-- 提供商管理模态框 -->
+<div id="providersModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:700px; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-shrink:0;">
+      <h3 style="font-size:18px;">管理提供商</h3>
+      <button class="btn btn-sm btn-secondary" onclick="hideProvidersManager()">&#x2716; 关闭</button>
+    </div>
+    <div id="providersList" style="overflow-y:auto; flex:1;">加载中...</div>
+  </div>
+</div>
+
+<!-- 同步结果提示模态框 -->
+<div id="syncAlertModal" style="display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); z-index:210; align-items:center; justify-content:center;">
+  <div style="background:var(--card); border-radius:var(--radius); padding:24px; width:90%; max-width:620px; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; flex-shrink:0;">
+      <h3 id="syncAlertTitle" style="font-size:18px; color:var(--red);">&#x26a0; 同步出现问题</h3>
+      <button class="btn btn-sm btn-secondary" onclick="hideSyncAlert()">&#x2716; 关闭</button>
+    </div>
+    <div id="syncAlertBody" style="overflow-y:auto; flex:1; font-size:13px; line-height:1.6; color:var(--text); white-space:pre-wrap; word-break:break-all;"></div>
+  </div>
+</div>
+
+<script>
+const API = '';
+
+// ====== 工具函数 ======
+function esc(s) { return s == null ? '' : String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// 原始厂商映射（前端 fallback）
+const OV_MAP = {
+  'nvidia': 'NVIDIA', 'google': 'Google', 'meta': 'Meta', 'microsoft': 'Microsoft',
+  'openai': 'OpenAI', 'mistralai': 'Mistral', 'ibm': 'IBM', 'cohere': 'Cohere',
+  'anthropic': 'Anthropic', 'ai21labs': 'AI21 Labs', 'snowflake': 'Snowflake',
+  'databricks': 'Databricks', 'writer': 'Writer', 'deepseek-ai': 'DeepSeek',
+  'moonshotai': 'Moonshot (Kimi)', 'z-ai': 'z-ai (智谱)', 'qwen': 'Qwen (通义千问)',
+  'stepfun-ai': 'StepFun (阶跃星辰)', 'minimaxai': 'MiniMax', '01-ai': '01.AI (零一万物)',
+  'baai': 'BAAI (智源)', 'bytedance': 'ByteDance (字节)', 'internlm': 'InternLM',
+  'huggingface': 'Hugging Face', 'stabilityai': 'Stability AI',
+  'sarvamai': 'Sarvam AI', 'zyphra': 'Zyphra', 'upstage': 'Upstage',
+  'abacusai': 'Abacus AI', 'poolside': 'Poolside', 'adept': 'Adept',
+  'bigcode': 'BigCode', 'aisingapore': 'AI Singapore', 'thinkingmachines': 'Thinking Machines',
+};
+function inferOriginalVendor(modelId) {
+  if (!modelId || !modelId.includes('/')) return 'Other';
+  const prefix = modelId.split('/')[0].toLowerCase();
+  return OV_MAP[prefix] || prefix.replace(/-/g,' ').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+}
+
+function toast(msg, cls) {
+  const el = document.createElement('div');
+  el.className = 'toast ' + cls;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2500);
+}
+
+async function api(path, opts) {
+  const res = await fetch(API + path, opts);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
+}
+
+// ====== 防御性 DOM helper ======
+function setText(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+function setHTML(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = val;
+}
+
+// ====== 全局状态 ======
+let allModels = [];
+let currentProvider = '';   // 当前选中的提供商
+let currentVendor = '';     // 当前选中的原始厂商（'' 表示"全部"）
+let selectedModelIds = new Set();  // 独立于 DOM 的选中状态，切换 Tab 不丢失
+
+// 选中复合键：providerId::id，用于区分共享 baseUrl/id 的不同提供商
+function selKey(m) {
+  return (m && m.providerId ? m.providerId : '') + ':::' + (m && m.id ? m.id : '');
+}
+function selParseKey(key) {
+  const sep = key.indexOf(':::');
+  if (sep < 0) return { providerId: '', id: key };
+  return { providerId: key.slice(0, sep), id: key.slice(sep + 3) };
+}
+function selFindModel(key) {
+  const { providerId, id } = selParseKey(key);
+  return (allModels || []).find(x => x.id === id && (x.providerId || '') === providerId);
+}
+let manageMode = false;     // 已导入模型管理模式
+let batchSelected = new Set();  // 批量删除选中的模型 ID（独立于 DOM）
+let _lastClickY = 0;        // 记录最近一次点击 checkbox 时的鼠标 Y 坐标
+
+// ====== 状态检查 ======
+async function checkStatus() {
+  try {
+    const [state, imported] = await Promise.all([
+      api('/api/state'),
+      api('/api/models')
+    ]);
+    const now = new Date();
+    const last = state.last_success_at ? new Date(state.last_success_at) : null;
+    const hoursAgo = last ? Math.round((now - last) / 3600000) : 999;
+
+    const dot = document.getElementById('statusDot');
+    const label = document.getElementById('statusLabel');
+    const detail = document.getElementById('statusDetail');
+
+    if (state.last_run_status === 'imported') {
+      if (dot) dot.className = 'status-dot ok';
+      if (label) label.textContent = '模型已导入';
+      if (detail) detail.textContent = last ? '上次导入 ' + last.toLocaleString('zh-CN') + '（' + hoursAgo + ' 小时前）' : '';
+    } else if (state.last_run_status === 'partial') {
+      if (dot) dot.className = 'status-dot warn';
+      if (label) label.textContent = '同步部分成功';
+      if (detail) detail.textContent = last ? '上次同步 ' + last.toLocaleString('zh-CN') + '，部分提供商失败' : '';
+    } else if (state.last_run_status === 'failed') {
+      if (dot) dot.className = 'status-dot err';
+      if (label) label.textContent = '上次同步失败';
+      if (detail) detail.textContent = last ? '失败于 ' + last.toLocaleString('zh-CN') : '';
+    } else if (state.last_run_status === 'success') {
+      if (dot) dot.className = 'status-dot ok';
+      if (label) label.textContent = '模型列表已同步';
+      if (detail) detail.textContent = last ? '上次同步 ' + last.toLocaleString('zh-CN') + '（' + hoursAgo + ' 小时前），可在下方勾选导入' : '';
+    } else if (!last) {
+      if (dot) dot.className = 'status-dot warn';
+      if (label) label.textContent = '尚未同步';
+      if (detail) detail.textContent = '建议先同步拉取模型列表';
+    } else if (hoursAgo > 25) {
+      if (dot) dot.className = 'status-dot warn';
+      if (label) label.textContent = '模型列表已过期';
+      if (detail) detail.textContent = '上次同步 ' + hoursAgo + ' 小时前，建议重新同步';
+    } else {
+      if (dot) dot.className = 'status-dot ok';
+      if (label) label.textContent = '模型列表最新';
+      if (detail) detail.textContent = '上次同步于 ' + last.toLocaleString('zh-CN');
+    }
+    renderImported(Array.isArray(imported) ? imported : []);
+  } catch (e) {
+    const dot = document.getElementById('statusDot');
+    const label = document.getElementById('statusLabel');
+    const detail = document.getElementById('statusDetail');
+    if (dot) dot.className = 'status-dot err';
+    if (label) label.textContent = '服务异常';
+    if (detail) detail.textContent = (e && e.message) || '未知错误';
+  }
+}
+
+// ====== 已导入模型 ======
+let _importedModels = []; // 缓存已导入模型列表
+let _importedVendor = ''; // 当前选中的已导入厂商（'' 表示全部）
+
+function renderImported(models) {
+  _importedModels = models;
+  setText('importedCount', models.length);
+  const el = document.getElementById('importedModels');
+  const tabBar = document.getElementById('importedVendorTabBar');
+  if (!el) return;
+
+  // 显示/隐藏"一键测试所有"按钮（至少 2 个模型才显示）
+  const btn = document.getElementById('btnTestAll');
+  if (btn) btn.style.display = models.length >= 2 ? '' : 'none';
+  // 清除旧进度
+  const prog = document.getElementById('testAllProgress');
+  if (prog) prog.style.display = 'none';
+  const sum = document.getElementById('testAllSummary');
+  if (sum) sum.style.display = 'none';
+
+  if (!models.length) {
+    if (tabBar) tabBar.innerHTML = '';
+    el.innerHTML = '<div class="empty">暂无已导入的模型</div>';
+    updateManageUi();
+    return;
+  }
+
+  // 按 vendor 分组
+  const groups = {};
+  for (const m of models) {
+    const v = m.vendor || 'Other';
+    if (!groups[v]) groups[v] = [];
+    groups[v].push(m);
+  }
+  const vKeys = Object.keys(groups).sort();
+
+  // 渲染 Tab 栏
+  if (tabBar) {
+    let tabHtml = '<button class="tab' + (_importedVendor === '' ? ' active' : '') + '" onclick="switchImportedVendor(\'\')">全部 <span style="font-weight:400;font-size:11px;">' + models.length + '</span></button>';
+    for (const v of vKeys) {
+      tabHtml += '<button class="tab' + (_importedVendor === v ? ' active' : '') + '" onclick="switchImportedVendor(\'' + esc(v) + '\')">' + esc(v) + ' <span style="font-weight:400;font-size:11px;">' + groups[v].length + '</span></button>';
+    }
+    tabBar.innerHTML = tabHtml;
+  }
+
+  // 当前显示的模型列表（按 Tab 过滤）
+  const displayModels = _importedVendor ? (groups[_importedVendor] || []) : models;
+
+  let html = '';
+  for (const m of displayModels) {
+    const caps = [];
+    if (m.supportsToolCall) caps.push('工具');
+    if (m.supportsImages) caps.push('视觉');
+    if (m.supportsReasoning) caps.push('推理');
+    const safeId = esc(m.id);
+    const displayName = (m.name && m.name !== m.id) ? esc(m.name) : safeId;
+    // 可用提供商（同 ID 的其它 key/服务）
+    const options = modelProviderOptions(m);
+    const delBtn = manageMode
+      ? '<button class="del-btn" onclick="removeImportedModel(\'' + safeId.replace(/'/g, "\\'") + '\')" title="删除">&#x2716;</button>'
+      : '';
+    const editBtn = manageMode
+      ? '<button class="edit-btn" onclick="editImportedModel(\'' + safeId.replace(/'/g, "\\'") + '\')" title="编辑申请ID和显示名称">&#x270E;</button>'
+      : '';
+    // 冲突标签：仅基于已导入模型的同ID冲突
+    const hasConflictTag = modelImportedConflict(m);
+    // 切换按钮：只要 latest-models 里有多个提供商就显示，方便随时切换
+    const hasSwitchOptions = modelProviderOptions(m).length > 1;
+    const switchBtn = hasSwitchOptions
+      ? '<button class="switch-btn' + (modelImportedConflict(m) ? ' active' : '') + '" onclick="openModelKeySwitch(\'' + safeId.replace(/'/g, "\\'") + '\')" title="此模型ID关联多个提供商，点击切换使用的Key">&#x21c5;</button>'
+      : '';
+    const conflictTag = hasConflictTag
+      ? '<span class="tag conflict" title="此模型ID关联多个提供商，存在Key冲突">冲突</span>'
+      : '';
+    // 思考强度（支持推理的模型）：显示当前强度，点击弹出选项
+    const effort = modelEffortInfo(m);
+    const effortTag = effort
+      ? '<span class="effort-tag" title="点击选择思考强度（支持: ' + esc(effort.supported.join(', ')) + '）" onclick="openModelEffort(\'' + safeId.replace(/'/g, "\\'") + '\')">&#x2699; 思考: ' + esc(effort.current) + '</span>'
+      : '';
+    const checked = batchSelected.has(m.id) ? ' checked' : '';
+    html += '<div class="imported-item' + (checked ? ' selected' : '') + '" data-mid="' + safeId + '">' +
+      '<div class="model-name" title="申请ID: ' + safeId + '">' +
+        (manageMode ? '<label class="sel-check" title="选择"><input type="checkbox" onclick="toggleBatchSelect(\'' + safeId.replace(/'/g, "\\'") + '\', this.checked)"' + checked + '></label>' : '') +
+        displayName +
+        conflictTag +
+        (m.name && m.name !== m.id ? '<span style="color:var(--text2); font-weight:400; font-size:11px; margin-left:6px;">(' + safeId + ')</span>' : '') +
+      '</div>' +
+      '<div class="model-caps">' +
+        caps.map(c => '<span class="tag on">' + c + '</span>').join('') +
+        effortTag +
+      '</div>' +
+      '<div class="model-actions">' +
+        '<button class="test-btn" onclick="testModel(\'' + safeId.replace(/'/g, "\\'") + '\', this)">发送test</button>' +
+        editBtn +
+        switchBtn +
+        delBtn +
+        '<span class="test-result" style="display:none"></span>' +
+      '</div>' +
+    '</div>';
+  }
+  el.innerHTML = '<div class="imported-list">' + html + '</div>';
+  updateManageUi();
+  updateBatchUi();
+}
+
+// 模型可用的提供商列表（同 ID 的不同 key/服务，来自同步数据 allModels）
+function modelProviderOptions(m) {
+  if (!m || !m.id) return [];
+  return (allModels || []).filter(x => x.id === m.id && x.providerId);
+}
+
+// 判断模型是否存在"已导入"的冲突：已导入列表中同 ID 存在不同提供商的条目
+function modelImportedConflict(m) {
+  if (!m || !m.id) return false;
+  if (!_importedModels || !_importedModels.length) return false;
+  const sameId = _importedModels.filter(x => x.id === m.id);
+  if (sameId.length <= 1) return false;
+  const pids = new Set(sameId.map(x => x.providerId || '').filter(Boolean));
+  return pids.size > 1;
+}
+
+// 获取模型的思考强度信息；不支持推理则返回 null
+function modelEffortInfo(m) {
+  if (!m || !m.supportsReasoning) return null;
+  const r = m.reasoning || {};
+  const supported = Array.isArray(r.supportedEfforts) && r.supportedEfforts.length
+    ? r.supportedEfforts
+    : ['low', 'medium', 'high'];
+  const current = r.defaultEffort && supported.indexOf(r.defaultEffort) >= 0
+    ? r.defaultEffort
+    : supported[0];
+  return { supported: supported, current: current };
+}
+
+// 打开思考强度选择弹窗：列出可选强度，点击选择后更新 defaultEffort
+function openModelEffort(modelId) {
+  const m = _importedModels.find(x => x.id === modelId);
+  if (!m) return;
+  const info = modelEffortInfo(m);
+  if (!info) return;
+
+  document.getElementById('effortModelId').textContent = modelId;
+  const list = document.getElementById('effortList');
+  let html = '';
+  for (const eff of info.supported) {
+    const isCur = eff === info.current;
+    html += '<div class="sk-item' + (isCur ? ' active' : '') + '" onclick="setModelEffort(\'' + esc(modelId) + '\', \'' + esc(eff) + '\')">' +
+      '<div class="sk-name">' + esc(eff) + (isCur ? ' <span class="sk-cur">当前</span>' : '') + '</div>' +
+    '</div>';
+  }
+  list.innerHTML = html || '<div class="empty">无可选强度</div>';
+  const modal = document.getElementById('effortModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function hideEffortModal() {
+  const modal = document.getElementById('effortModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// 设置思考强度：调用后端更新 defaultEffort，成功后刷新
+async function setModelEffort(modelId, effort) {
+  try {
+    const data = await api('/api/models/switch-effort', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: modelId, effort: effort })
+    });
+    if (data.ok) {
+      toast(data.message || '思考强度已切换', 'ok');
+      hideEffortModal();
+      await refreshImportedModels();
+    } else {
+      toast(data.error || '切换失败', 'err');
+    }
+  } catch (e) {
+    toast('切换失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+
+function switchImportedVendor(vendor) {
+  _importedVendor = vendor;
+  renderImported(_importedModels);
+}
+
+// ====== 已导入模型管理模式 ======
+function toggleManageMode() {
+  manageMode = !manageMode;
+  const btn = document.getElementById('btnManageImported');
+  if (btn) {
+    btn.innerHTML = manageMode ? '&#x2716; 退出管理' : '&#x2699; 管理';
+    btn.className = manageMode ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-secondary';
+  }
+  if (!manageMode) {
+    batchSelected.clear();
+  }
+  renderImported(_importedModels);
+}
+
+function updateManageUi() {
+  const root = document.getElementById('importedModels');
+  if (root) root.classList.toggle('manage-on', manageMode);
+  // 批量操作栏(.batch-bar)与 #importedModels 是兄弟节点，需将其所在 .card 一并标记
+  const card = document.getElementById('batchBar') ? document.getElementById('batchBar').closest('.card') : null;
+  if (card) card.classList.toggle('manage-on', manageMode);
+  const batchBtn = document.getElementById('btnBatchDelete');
+  if (batchBtn) batchBtn.style.display = manageMode && _importedModels.length ? '' : 'none';
+}
+
+// 更新批量删除操作栏状态（计数 / 全选勾选状态）
+function updateBatchUi() {
+  const count = document.getElementById('batchSelCount');
+  if (count) count.textContent = batchSelected.size;
+
+  // 全选复选框状态：按当前显示的模型计算
+  const selAll = document.getElementById('batchSelectAll');
+  const displayModels = currentDisplayedImported();
+  if (selAll) {
+    const onScreen = displayModels.filter(m => batchSelected.has(m.id)).length;
+    if (displayModels.length && onScreen === displayModels.length) {
+      selAll.checked = true;
+      selAll.indeterminate = false;
+    } else if (onScreen === 0) {
+      selAll.checked = false;
+      selAll.indeterminate = false;
+    } else {
+      selAll.indeterminate = true;
+      selAll.checked = false;
+    }
+  }
+  // 同步单项复选框状态与高亮，确保与 batchSelected 一致
+  document.querySelectorAll('#importedModels .imported-item').forEach(el => {
+    const mid = el.getAttribute('data-mid');
+    const isSel = batchSelected.has(mid);
+    el.classList.toggle('selected', isSel);
+    const cb = el.querySelector('.sel-check input');
+    if (cb) cb.checked = isSel;
+  });
+  // 管理模式下显示/隐藏批量删除按钮
+  const batchBtn = document.getElementById('btnBatchDelete');
+  if (batchBtn) batchBtn.style.display = manageMode && _importedModels.length ? '' : 'none';
+}
+
+// 当前在屏幕上显示的模型（按 Tab 过滤）
+function currentDisplayedImported() {
+  if (!_importedVendor) return _importedModels;
+  return (_importedModels || []).filter(m => (m.vendor || 'Other') === _importedVendor);
+}
+
+function toggleBatchSelect(modelId, checked) {
+  if (checked) batchSelected.add(modelId);
+  else batchSelected.delete(modelId);
+  const displayModels = currentDisplayedImported();
+  const onScreen = displayModels.filter(m => batchSelected.has(m.id)).length;
+  if (onScreen === displayModels.length) {
+    const selAll = document.getElementById('batchSelectAll');
+    if (selAll) { selAll.checked = true; selAll.indeterminate = false; }
+  }
+  updateBatchUi();
+}
+
+function toggleSelectAllImported(checked) {
+  const displayModels = currentDisplayedImported();
+  for (const m of displayModels) {
+    if (checked) batchSelected.add(m.id);
+    else batchSelected.delete(m.id);
+  }
+  const selAll = document.getElementById('batchSelectAll');
+  if (selAll) { selAll.checked = checked; selAll.indeterminate = false; }
+  updateBatchUi();
+}
+
+// 反选当前显示的模型
+function invertSelectImported() {
+  const displayModels = currentDisplayedImported();
+  for (const m of displayModels) {
+    if (batchSelected.has(m.id)) batchSelected.delete(m.id);
+    else batchSelected.add(m.id);
+  }
+  const selAll = document.getElementById('batchSelectAll');
+  if (selAll) { selAll.checked = false; selAll.indeterminate = false; }
+  updateBatchUi();
+}
+
+async function batchDeleteImported() {
+  if (!batchSelected.size) {
+    toast('请先勾选要删除的模型', 'err');
+    return;
+  }
+  const ids = Array.from(batchSelected);
+  if (!confirm('确定批量删除 ' + ids.length + ' 个已导入模型吗？\n\n' + ids.join('\n'))) return;
+  try {
+    const data = await api('/api/models/remove-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: ids })
+    });
+    if (data.ok) {
+      batchSelected.clear();
+      toast('已批量删除 ' + data.removed + ' 个模型', 'ok');
+      await checkStatus(); // 刷新已导入列表
+    } else {
+      toast(data.error || '批量删除失败', 'err');
+    }
+  } catch (e) {
+    toast('批量删除失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+
+async function removeImportedModel(modelId) {
+  if (!confirm('确定从已导入列表中删除 "' + modelId + '" 吗？')) return;
+  try {
+    const data = await api('/api/models/remove', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: modelId })
+    });
+    if (data.ok) {
+      toast('已删除 ' + modelId, 'ok');
+      await checkStatus(); // 刷新已导入列表
+    } else {
+      toast(data.error || '删除失败', 'err');
+    }
+  } catch (e) {
+    toast('删除失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+
+// ====== 同步 ======
+async function triggerSync(dryRun) {
+  const btn = document.getElementById(dryRun ? 'btnDryRun' : 'btnSync');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">&#x21bb;</span> 同步中...';
+  document.getElementById('syncResult').style.display = 'none';
+
+  let result = null;
+  try {
+    result = await api('/api/sync?dry-run=' + (dryRun ? '1' : '0'), { method: 'POST' });
+    const div = document.getElementById('syncResult');
+    div.style.display = 'block';
+    div.className = 'sync-result' + (result.returncode === 0 ? '' : ' err');
+    div.textContent = result.stdout || result.stderr || '';
+    toast(dryRun ? '演练完成' : '同步成功！', result.returncode === 0 ? 'ok' : 'err');
+    await loadLatestModels();
+  } catch (e) {
+    toast('请求失败: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+  await checkStatus();
+  await loadLog();
+  return result;
+}
+
+// ====== 同步结果失败提示 ======
+// 从同步返回结果中提取失败信息并弹出明确提示。
+// result.stdout 含 "失败 providers: [...]"，result.stderr 含各提供商的具体报错。
+function extractSyncFailures(result) {
+  if (!result) return null;
+  const out = (result.stdout || '') + '\n' + (result.stderr || '');
+  const failed = [];
+  // 失败 providers: ['a', 'b']
+  const m = out.match(/失败\s+providers?:\s*\[([^\]]*)\]/);
+  if (m && m[1].trim()) {
+    const names = m[1].split(',').map(s => s.trim().replace(/^['"]|['"]$/g, '')).filter(Boolean);
+    failed.push(...names);
+  }
+  // 各提供商具体报错行，如 "  ! [modelscope] HTTP 错误: 404 Not Found"
+  const errors = [];
+  const re = /!\s*\[([^\]]+)\]\s*(.+)/g;
+  let mm;
+  while ((mm = re.exec(out)) !== null) {
+    const name = mm[1].trim();
+    const err = mm[2].trim();
+    if (!errors.some(e => e.name === name && e.err === err)) {
+      errors.push({ name, err });
+    }
+  }
+  return { failed, errors, returncode: result.returncode, stdout: result.stdout || '', stderr: result.stderr || '' };
+}
+
+function showSyncAlert(failures, title) {
+  const modal = document.getElementById('syncAlertModal');
+  const titleEl = document.getElementById('syncAlertTitle');
+  const bodyEl = document.getElementById('syncAlertBody');
+  if (!modal || !bodyEl) { alert((failures.failed.join('、') || '部分') + ' 提供商同步失败'); return; }
+  if (title) titleEl.textContent = title;
+  let html = '';
+  if (failures.failed.length) {
+    html += '<div style="margin-bottom:8px;">以下提供商同步失败：<b style="color:var(--red);">' + esc(failures.failed.join('、')) + '</b></div>';
+  } else {
+    html += '<div style="margin-bottom:8px; color:var(--red);">同步未完全成功，请查看下方错误信息。</div>';
+  }
+  if (failures.errors.length) {
+    html += '<div style="margin-top:6px; background:#fff1f2; border:1px solid #fecaca; border-radius:6px; padding:10px;">';
+    for (const e of failures.errors) {
+      html += '<div style="margin-bottom:6px;"><b>' + esc(e.name) + '</b><br><span style="color:var(--red);">' + esc(e.err) + '</span></div>';
+    }
+    html += '</div>';
+  } else {
+    html += '<div style="margin-top:6px; background:#fff1f2; border:1px solid #fecaca; border-radius:6px; padding:10px; color:var(--red); white-space:pre-wrap;">' + esc((failures.stderr || failures.stdout || '')) + '</div>';
+  }
+  bodyEl.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function hideSyncAlert() {
+  const modal = document.getElementById('syncAlertModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// 判断同步结果是否有失败（returncode!=0 或 存在失败 providers 或 stderr 有报错）
+function syncHasFailure(result) {
+  if (!result) return false;
+  if (result.returncode !== 0) return true;
+  const out = (result.stdout || '') + '\n' + (result.stderr || '');
+  if (/失败\s+providers?:\s*\[[^\]]*\]/.test(out)) return true;
+  return /!\s*\[[^\]]+\]/.test(result.stderr || '');
+}
+
+// ====== 加载全量模型列表 ======
+async function loadLatestModels() {
+  try {
+    let data = await api('/api/latest-models');
+    let models = Array.isArray(data) ? data : [];
+    if (!models.length) {
+      const imported = await api('/api/models');
+      models = Array.isArray(imported) ? imported : [];
+    }
+    allModels = models;
+    renderTabs();
+    renderCurrentView();
+  } catch (e) {
+    document.getElementById('modelListContainer').innerHTML = '<div class="empty">加载失败: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ====== 渲染 Tab 栏 ======
+function renderTabs() {
+  if (!allModels.length) {
+    document.getElementById('providerTabBar').innerHTML = '';
+    document.getElementById('vendorTabBar').innerHTML = '';
+    document.getElementById('modelListContainer').innerHTML = '<div class="empty">暂无模型数据，请先同步</div>';
+    return;
+  }
+
+  // 按 provider 分组
+  const provGroups = {};
+  for (const m of allModels) {
+    const p = m.vendor || 'Other';
+    if (!provGroups[p]) provGroups[p] = [];
+    provGroups[p].push(m);
+  }
+  const provKeys = Object.keys(provGroups).sort();
+
+  // 如果当前 provider 不在列表中，默认选第一个
+  if (!provKeys.includes(currentProvider)) {
+    currentProvider = provKeys[0];
+  }
+
+  // 渲染提供商 Tab
+  const pBar = document.getElementById('providerTabBar');
+  if (provKeys.length <= 1) {
+    pBar.innerHTML = ''; // 只有一个提供商，不显示 Tab
+  } else {
+    pBar.innerHTML = provKeys.map(p =>
+      '<button class="tab' + (p === currentProvider ? ' active' : '') + '" onclick="switchProvider(\'' + esc(p) + '\')">' + esc(p) + ' <span style="font-weight:400;font-size:11px;color:var(--text2)">' + provGroups[p].length + '</span></button>'
+    ).join('');
+  }
+
+  // 渲染当前 provider 下的 vendor Tab
+  renderVendorTabs(provGroups[currentProvider] || []);
+}
+
+// ====== 切换提供商 ======
+function switchProvider(provider) {
+  currentProvider = provider;
+  currentVendor = ''; // 重置到"全部"
+  renderTabs();
+  renderCurrentView();
+}
+
+// ====== 渲染原始厂商 Tab ======
+function renderVendorTabs(models) {
+  const vBar = document.getElementById('vendorTabBar');
+  if (!models.length) {
+    vBar.innerHTML = '';
+    return;
+  }
+
+  // 按原始厂商分组
+  const vGroups = {};
+  for (const m of models) {
+    const ov = m.originalVendor || inferOriginalVendor(m.id) || 'Other';
+    if (!vGroups[ov]) vGroups[ov] = [];
+    vGroups[ov].push(m);
+  }
+  const vKeys = Object.keys(vGroups).sort();
+
+  // 如果当前 vendor 不在列表中，重置到"全部"
+  if (currentVendor && !vKeys.includes(currentVendor)) {
+    currentVendor = '';
+  }
+
+  // 构建 Tab HTML
+  let html = '<button class="tab' + (currentVendor === '' ? ' active' : '') + '" onclick="switchVendor(\'\')">全部 <span style="font-weight:400;font-size:11px;color:var(--text2)">' + models.length + '</span></button>';
+  for (const ov of vKeys) {
+    html += '<button class="tab' + (currentVendor === ov ? ' active' : '') + '" onclick="switchVendor(\'' + esc(ov) + '\')">' + esc(ov) + ' <span style="font-weight:400;font-size:11px;color:var(--text2)">' + vGroups[ov].length + '</span></button>';
+  }
+  vBar.innerHTML = html;
+}
+
+// ====== 切换原始厂商 ======
+function switchVendor(vendor) {
+  currentVendor = vendor;
+  // 更新 Tab 高亮
+  document.querySelectorAll('#vendorTabBar .tab').forEach(t => {
+    t.classList.remove('active');
+  });
+  // 重新渲染 vendor tab 高亮
+  const provGroups = {};
+  for (const m of allModels) {
+    const p = m.vendor || 'Other';
+    if (!provGroups[p]) provGroups[p] = [];
+    provGroups[p].push(m);
+  }
+  renderVendorTabs(provGroups[currentProvider] || []);
+  renderCurrentView();
+}
+
+// ====== 渲染当前视图 ======
+function renderCurrentView() {
+  // 过滤出当前 provider 的模型
+  let models = allModels.filter(m => (m.vendor || 'Other') === currentProvider);
+  if (!models.length) {
+    document.getElementById('modelListContainer').innerHTML = '<div class="empty">该提供商暂无模型</div>';
+    return;
+  }
+
+  // 如果选了特定 vendor，进一步过滤
+  if (currentVendor) {
+    models = models.filter(m => {
+      const ov = m.originalVendor || inferOriginalVendor(m.id) || 'Other';
+      return ov === currentVendor;
+    });
+  }
+
+  // 渲染模型列表
+  let html = '<div class="model-list">';
+  for (const m of models) {
+    const caps = [];
+    if (m.supportsToolCall) caps.push('<span class="tag on">工具</span>');
+    if (m.supportsImages) caps.push('<span class="tag on">视觉</span>');
+    if (m.supportsReasoning) caps.push('<span class="tag on">推理</span>');
+    const checked = selectedModelIds.has(selKey(m)) ? ' checked' : '';
+    const ovLabel = !currentVendor ? '<span class="model-vendor-label">' + esc(m.originalVendor || inferOriginalVendor(m.id) || '') + '</span>' : '';
+    html += '  <div class="model-row" data-vendor="' + esc(m.originalVendor || inferOriginalVendor(m.id) || 'Other') + '">';
+    html += '    <input type="checkbox" class="model-cb" value="' + esc(selKey(m)) + '" onchange="toggleModel(this.value, this.checked, event)"' + checked + '>';
+    html += '    <span class="model-id">' + ovLabel + esc(m.id) + '</span>';
+    html += '    <div class="model-tags">' + caps.join('') + '</div>';
+    html += '  </div>';
+  }
+  html += '</div>';
+
+  document.getElementById('modelListContainer').innerHTML = html;
+  updateSelection();
+}
+
+// ====== 搜索过滤 ======
+function filterModels() {
+  const q = document.getElementById('searchBox').value.toLowerCase();
+  document.querySelectorAll('.model-row').forEach(row => {
+    const id = row.querySelector('.model-id').textContent.toLowerCase();
+    row.style.display = q && !id.includes(q) ? 'none' : '';
+  });
+}
+
+// ====== 选择逻辑（独立于 DOM，切换 Tab 不丢失） ======
+function toggleModel(modelId, checked, event) {
+  if (event) _lastClickY = event.clientY;
+  if (checked) selectedModelIds.add(modelId);
+  else selectedModelIds.delete(modelId);
+  updateSelection();
+}
+
+function selectAll() {
+  document.querySelectorAll('.model-row:not([style*="display: none"]) .model-cb').forEach(c => {
+    c.checked = true;
+    selectedModelIds.add(c.value);
+  });
+  updateSelection();
+}
+
+function deselectAll() {
+  document.querySelectorAll('.model-cb').forEach(c => c.checked = false);
+  selectedModelIds.clear();
+  updateSelection();
+}
+
+function updateSelection() {
+  const count = selectedModelIds.size;
+  setText('selectedCount', count);
+  setText('selectedCountBar', count);
+  const btn = document.getElementById('btnImport');
+  if (btn) btn.disabled = count === 0;
+
+  // 底部已选面板（从独立 Set 读取，不依赖 DOM）
+  const panel = document.getElementById('selectionPanel');
+  const list = document.getElementById('selectionList');
+  const panelCount = document.getElementById('panelSelectedCount');
+
+  if (count === 0) {
+    if (panel) panel.style.display = 'none';
+    document.body.classList.remove('has-selection');
+    document.body.style.paddingBottom = '';
+    document.body.style.paddingTop = '';
+    return;
+  }
+
+  if (panel) {
+    panel.style.display = 'flex';
+    // 根据鼠标位置决定浮窗出现在顶部还是底部
+    const viewH = window.innerHeight;
+    if (_lastClickY > viewH / 2) {
+      // 鼠标在下半区 → 浮窗出现在顶部
+      panel.classList.add('top');
+      panel.classList.remove('bottom');
+    } else {
+      // 鼠标在上半区 → 浮窗出现在底部
+      panel.classList.remove('top');
+      panel.classList.add('bottom');
+    }
+  }
+  if (panelCount) panelCount.textContent = count;
+  document.body.classList.add('has-selection');
+
+  // 按原始厂商分组展示
+  const groups = {};
+  selectedModelIds.forEach(key => {
+    const m = selFindModel(key);
+    const ov = m ? (m.originalVendor || inferOriginalVendor(m.id) || 'Other') : 'Other';
+    if (!groups[ov]) groups[ov] = [];
+    groups[ov].push({ key: key, m: m });
+  });
+
+  let html = '';
+  for (const [ov, items] of Object.entries(groups)) {
+    html += items.map(({ key, m }) =>
+      '<span class="selection-item"><span class="sel-vendor">' + esc(ov) + '</span> ' +
+      (m && m.providerId ? '<span class="sel-provider">' + esc(m.providerId) + '</span> ' : '') +
+      esc(m ? m.id : key) +
+      ' <span class="sel-remove" onclick="removeFromSelection(\'' + esc(key) + '\')" title="取消选中">&#x2716;</span></span>'
+    ).join('');
+  }
+  list.innerHTML = html;
+
+  // 动态设置 body padding，避免面板遮挡内容
+  requestAnimationFrame(() => {
+    if (panel) {
+      const h = panel.getBoundingClientRect().height;
+      if (panel.classList.contains('top')) {
+        // 顶部定位：给 body 加 padding-top
+        document.body.style.paddingTop = Math.ceil(h + 20) + 'px';
+        document.body.style.paddingBottom = '';
+      } else {
+        // 底部定位：给 body 加 padding-bottom
+        document.body.style.paddingBottom = Math.ceil(h + 20) + 'px';
+        document.body.style.paddingTop = '';
+      }
+    }
+  });
+}
+
+function toggleSelectionPanel() {
+  const panel = document.getElementById('selectionPanel');
+  const body = document.getElementById('selectionBody');
+  const icon = document.getElementById('panelToggleIcon');
+  const isHidden = body.style.display === 'none';
+  body.style.display = isHidden ? '' : 'none';
+  icon.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(180deg)';
+  // 折叠/展开后面板高度变化，重新计算 padding
+  requestAnimationFrame(() => {
+    if (panel) {
+      const h = panel.getBoundingClientRect().height;
+      if (panel.classList.contains('top')) {
+        document.body.style.paddingTop = Math.ceil(h + 20) + 'px';
+        document.body.style.paddingBottom = '';
+      } else {
+        document.body.style.paddingBottom = Math.ceil(h + 20) + 'px';
+        document.body.style.paddingTop = '';
+      }
+    }
+  });
+}
+
+function removeFromSelection(modelId) {
+  selectedModelIds.delete(modelId);
+  // 同步取消 DOM 中对应 checkbox（如果它在当前视图里）
+  document.querySelectorAll('.model-cb').forEach(c => {
+    if (c.value === modelId) c.checked = false;
+  });
+  updateSelection();
+}
+
+function clearSelection() {
+  selectedModelIds.clear();
+  document.querySelectorAll('.model-cb').forEach(c => c.checked = false);
+  updateSelection();
+}
+
+// ====== 导入选中 ======
+async function importSelected() {
+  // 将复合键解析为 {id, providerId}，支持区分共享 id 的不同提供商
+  const selected = [...selectedModelIds].map(key => selParseKey(key));
+  if (!selected.length) return;
+
+  // 检测 ID 冲突：选中模型中，哪些 ID 已在已导入列表、但来自不同提供商
+  const conflicts = selected.filter(s => {
+    const imported = _importedModels.find(m => m.id === s.id);
+    if (!imported) return false;
+    return (imported.providerId || '') !== (s.providerId || '');
+  });
+
+  if (conflicts.length) {
+    const names = conflicts.map(c => c.id).join('、');
+    const ok = confirm(
+      '以下模型 ID 已导入过，但来自不同提供商，存在冲突（WorkBuddy 同一 ID 只能使用一个 Key）：\n\n' +
+      names +
+      '\n\n继续导入会用新选中提供商替换，确定继续吗？'
+    );
+    if (!ok) return;
+  }
+
+  const btn = document.getElementById('btnImport');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin">&#x21bb;</span> 导入中...';
+  }
+
+  try {
+    const result = await api('/api/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ selected })
+    });
+    toast(result.returncode === 0 ? '成功导入 ' + selected.length + ' 个模型！' : '导入出错', result.returncode === 0 ? 'ok' : 'err');
+    // 尝试从后端输出解析实际新增数，让提示更准确
+    if (result.returncode === 0) {
+      const out = result.stdout || '';
+      const m = out.match(/新增\s+(\d+)\s+个模型/);
+      if (m) {
+        const added = parseInt(m[1], 10);
+        toast(added > 0 ? '成功导入 ' + added + ' 个新模型' : '所选模型均已导入，无需重复导入', added > 0 ? 'ok' : 'warn');
+      }
+    }
+    // 导入成功后关闭已选面板并清除选中
+    const panel = document.getElementById('selectionPanel');
+    if (panel) panel.style.display = 'none';
+    document.body.classList.remove('has-selection');
+    document.body.style.paddingBottom = '';
+    document.body.style.paddingTop = '';
+    clearSelection();
+    const div = document.getElementById('syncResult');
+    if (div) {
+      div.style.display = 'block';
+      div.className = 'sync-result' + (result.returncode === 0 ? '' : ' err');
+      div.textContent = result.stdout || result.stderr || '';
+    }
+    await checkStatus();
+    await loadLog();
+  } catch (e) {
+    toast('导入失败: ' + ((e && e.message) || '未知错误'), 'err');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = orig;
+    }
+  }
+}
+
+// ====== 测试模型 ======
+async function testModel(modelId, btn) {
+  const item = btn.closest('.imported-item');
+  const resultEl = item.querySelector('.test-result');
+  btn.disabled = true;
+  btn.textContent = '发送中...';
+  resultEl.style.display = 'inline';
+  resultEl.className = 'test-result loading';
+  resultEl.textContent = '请求中...';
+
+  try {
+    const data = await api('/api/test-model', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: modelId })
+    });
+
+    if (data.ok) {
+      const ms = Math.round((data.elapsed || 0) * 1000);
+      resultEl.className = 'test-result ok';
+      resultEl.textContent = '✔ ' + ms + 'ms';
+    } else {
+      const code = data.status_code || '?';
+      const errMsg = esc(data.error || '未知错误').slice(0, 60);
+      resultEl.className = 'test-result err';
+      resultEl.textContent = '✘ ' + code + ' ' + errMsg;
+    }
+  } catch (e) {
+    resultEl.className = 'test-result err';
+    resultEl.textContent = '✘ 请求失败';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '发送test';
+  }
+}
+
+// ====== 一键测试所有 ======
+async function testAllModels() {
+  // 获取所有已导入模型
+  let models = [];
+  try {
+    models = await api('/api/models');
+  } catch (e) {
+    toast('获取模型列表失败: ' + ((e && e.message) || '未知错误'), 'err');
+    return;
+  }
+  if (!Array.isArray(models) || models.length < 2) {
+    toast('至少需要 2 个已导入模型才能批量测试', 'err');
+    return;
+  }
+
+  // 显示进度条
+  const btn = document.getElementById('btnTestAll');
+  if (btn) btn.disabled = true;
+  const prog = document.getElementById('testAllProgress');
+  if (prog) prog.style.display = 'block';
+  const bar = document.getElementById('testAllBar');
+  const status = document.getElementById('testAllStatus');
+  const stats = document.getElementById('testAllStats');
+
+  const total = models.length;
+  let passed = 0, failed = 0, errors = [];
+
+  // 逐模型测试（串联避免压垮后端/API）
+  for (let i = 0; i < models.length; i++) {
+    const m = models[i];
+    const label = m.vendor ? m.vendor + '/' + m.id : m.id;
+    const pct = Math.round(((i) / total) * 100);
+    if (bar) bar.style.width = pct + '%';
+    if (status) status.textContent = '测试中 (' + (i+1) + '/' + total + '): ' + label;
+    if (stats) stats.innerHTML = '&#x2714; ' + passed + ' &#x2718; ' + failed;
+
+    // 找到页面上对应的测试按钮和结果元素
+    const item = document.querySelector('.imported-item[data-mid="' + CSS.escape(m.id) + '"]');
+    const testBtn = item ? item.querySelector('.test-btn') : null;
+    const resultEl = item ? item.querySelector('.test-result') : null;
+
+    // 触发测试（复用 testModel 的视觉逻辑，但自己处理 API 调用以获取更详细的失败信息）
+    if (testBtn) testBtn.disabled = true;
+    if (resultEl) {
+      resultEl.style.display = 'inline';
+      resultEl.className = 'test-result loading';
+      resultEl.textContent = '测试中...';
+    }
+
+    try {
+      const data = await api('/api/test-model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: m.id })
+      });
+
+      if (data.ok) {
+        passed++;
+        const ms = Math.round((data.elapsed || 0) * 1000);
+        if (resultEl) {
+          resultEl.className = 'test-result ok';
+          resultEl.textContent = '✔ ' + ms + 'ms';
+        }
+      } else {
+        failed++;
+        const code = data.status_code || '?';
+        errors.push(label + ': ' + code + ' ' + (data.error || ''));
+        if (resultEl) {
+          resultEl.className = 'test-result err';
+          resultEl.textContent = '✘ ' + code;
+        }
+      }
+    } catch (e) {
+      failed++;
+      errors.push(label + ': ' + ((e && e.message) || '请求失败'));
+      if (resultEl) {
+        resultEl.className = 'test-result err';
+        resultEl.textContent = '✘ 请求失败';
+      }
+    } finally {
+      if (testBtn) testBtn.disabled = false;
+    }
+  }
+
+  // 完成
+  if (bar) bar.style.width = '100%';
+  if (status) status.textContent = '测试完成';
+  if (stats) stats.innerHTML = '&#x2714; ' + passed + ' / ' + total + ' &#x2718; ' + failed;
+  if (btn) btn.disabled = false;
+
+  // 在卡片头部显示摘要
+  const summary = document.getElementById('testAllSummary');
+  if (summary) {
+    summary.style.display = '';
+    if (failed === 0) {
+      summary.innerHTML = '全部通过 &#x2714; (共 ' + total + ' 个)';
+      summary.style.color = 'var(--green)';
+    } else {
+      summary.innerHTML = '通过 ' + passed + '/' + total + ' &#x2718; ' + failed + ' 个失败';
+      summary.style.color = failed > passed/2 ? 'var(--red)' : 'var(--yellow)';
+    }
+  }
+
+  // 如果有失败的，弹出详细错误
+  if (errors.length > 0) {
+    const errList = errors.slice(0, 10).map(e => '  • ' + e).join('\n');
+    const more = errors.length > 10 ? '\n...还有 ' + (errors.length - 10) + ' 个错误' : '';
+    toast('批量测试完成，' + passed + '/' + total + ' 通过，' + failed + ' 个失败\n\n失败详情：\n' + errList + more, failed === 0 ? 'ok' : 'err');
+  } else {
+    toast('批量测试完成：全部 ' + total + ' 个模型通过！', 'ok');
+  }
+}
+
+// ====== 日志模态框 ======
+async function loadLog() {
+  // 加载到日志模态框面板（如有打开）
+  try {
+    const data = await api('/api/report');
+    setText('logModalPanel', data.content || '暂无同步记录');
+  } catch { /* ignore */ }
+}
+
+function showLogModal() {
+  const modal = document.getElementById('logModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    loadLog();
+  }
+}
+
+function hideLogModal() {
+  const modal = document.getElementById('logModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function refreshLogModal() {
+  setText('logModalPanel', '刷新中...');
+  await loadLog();
+}
+
+// ====== 拖拽调整大小逻辑 ======
+(function initResizableLogModal() {
+  const win = document.getElementById('logModalWindow');
+  if (!win) return;
+  const handles = win.querySelectorAll('.resize-handle');
+  let dragging = false;
+  let startX = 0, startY = 0, startW = 0, startH = 0, dir = '';
+
+  handles.forEach(h => {
+    h.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragging = true;
+      dir = h.dataset.dir;
+      startX = e.clientX;
+      startY = e.clientY;
+      // 使用 getBoundingClientRect 获取实际尺寸（含边框）
+      const rect = win.getBoundingClientRect();
+      startW = rect.width;
+      startH = rect.height;
+      document.body.style.userSelect = 'none';
+      // 添加遮罩避免拖拽时 iframe/文本选中干扰
+      win.classList.add('resizing');
+    });
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    let newW = startW, newH = startH;
+    if (dir.includes('e')) newW = startW + dx;
+    if (dir.includes('s')) newH = startH + dy;
+    // 应用最小/最大约束
+    const minW = 320, minH = 200;
+    const maxW = window.innerWidth - 4;
+    const maxH = window.innerHeight - 4;
+    newW = Math.max(minW, Math.min(maxW, newW));
+    newH = Math.max(minH, Math.min(maxH, newH));
+    win.style.width = newW + 'px';
+    win.style.height = newH + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.style.userSelect = '';
+    win.classList.remove('resizing');
+  });
+
+  // 标题栏拖动整窗移动（额外便利）
+  const header = win.querySelector('.log-modal-header');
+  if (header) {
+    header.addEventListener('mousedown', (e) => {
+      // 不要在按钮上启动拖动
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      let draggingWindow = true;
+      const rect = win.getBoundingClientRect();
+      let offX = e.clientX - rect.left;
+      let offY = e.clientY - rect.top;
+      document.body.style.userSelect = 'none';
+
+      const onMove = (ev) => {
+        if (!draggingWindow) return;
+        let nx = ev.clientX - offX;
+        let ny = ev.clientY - offY;
+        // 约束在视口内
+        nx = Math.max(0, Math.min(window.innerWidth - rect.width, nx));
+        ny = Math.max(0, Math.min(window.innerHeight - rect.height, ny));
+        win.style.position = 'fixed';
+        win.style.left = nx + 'px';
+        win.style.top = ny + 'px';
+        win.style.margin = '0';
+      };
+      const onUp = () => {
+        draggingWindow = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.userSelect = '';
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+})();
+
+// ====== 添加提供商 ======
+
+// ====== 添加提供商 ======
+function showAddProviderModal() {
+  const modal = document.getElementById('addProviderModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function hideAddProviderModal() {
+  const modal = document.getElementById('addProviderModal');
+  if (modal) modal.style.display = 'none';
+  // 清空表单
+  const form = document.getElementById('addProviderForm');
+  if (form) form.reset();
+}
+
+async function addProvider(event) {
+  event.preventDefault();
+  const provider = {
+    providerId: document.getElementById('providerId').value.trim(),
+    name: document.getElementById('providerName').value.trim(),
+    protocol: document.getElementById('providerProtocol').value,
+    baseUrl: document.getElementById('providerBaseUrl').value.trim(),
+    apiKey: document.getElementById('providerApiKey').value,
+    namePrefix: document.getElementById('providerNamePrefix').value,
+    nameSuffix: document.getElementById('providerNameSuffix').value,
+    enabled: document.getElementById('providerEnabled').checked
+  };
+
+  if (!provider.providerId || !provider.name || !provider.protocol || !provider.baseUrl) {
+    toast('请填写所有必需字段', 'err');
+    return false;
+  }
+
+  try {
+    const data = await api('/api/providers/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(provider)
+    });
+    if (data.ok) {
+      toast(data.message || '提供商添加成功，正在同步模型列表...', 'ok');
+      hideAddProviderModal();
+      // 自动触发同步，将新提供商的模型拉取到 latest-models.json
+      const syncResult = await triggerSync(false);
+      // 若同步出现问题，弹出明确提示
+      if (syncHasFailure(syncResult)) {
+        const f = extractSyncFailures(syncResult);
+        showSyncAlert(f, '&#x26a0; 同步出现问题');
+      } else {
+        toast('同步成功', 'ok');
+      }
+    } else {
+      toast(data.error || '添加失败', 'err');
+    }
+  } catch (e) {
+    toast('添加失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+  return false;
+}
+
+// ====== 提供商管理 ======
+let _pmProviders = []; // 缓存当前提供商列表
+let _pmEditIdx = -1;   // 当前正在编辑的提供商索引，-1 表示无编辑
+
+function showProvidersManager() {
+  const modal = document.getElementById('providersModal');
+  if (modal) modal.style.display = 'flex';
+  loadProvidersManager();
+}
+
+function hideProvidersManager() {
+  const modal = document.getElementById('providersModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function loadProvidersManager() {
+  const el = document.getElementById('providersList');
+  if (!el) return;
+  try {
+    _pmProviders = await api('/api/providers');
+    sortProvidersDefault();
+    renderProvidersManager();
+  } catch (e) {
+    el.innerHTML = '<div class="empty">加载失败: ' + esc(e.message) + '</div>';
+  }
+}
+
+// 默认排序：可用的（enabled=true 且有 apiKey）→ 可启用的（enabled=true 无 key）→ 已禁用的
+function sortProvidersDefault() {
+  _pmProviders.sort((a, b) => {
+    const aAvail = a.enabled && a.apiKey && a.apiKey.trim();
+    const bAvail = b.enabled && b.apiKey && b.apiKey.trim();
+    const aEnabled = a.enabled;
+    const bEnabled = b.enabled;
+    if (aAvail !== bAvail) return aAvail ? -1 : 1;
+    if (aEnabled !== bEnabled) return aEnabled ? -1 : 1;
+    return (a.providerId || '').localeCompare(b.providerId || '');
+  });
+}
+
+// 拖拽排序（HTML5 Drag and Drop）
+function bindProviderDrag(container) {
+  let dragIdx = -1;
+  container.querySelectorAll('.pm-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      // 在交互元素（按钮/输入框）上不触发拖动
+      if (e.target.closest('button, input, label')) {
+        e.preventDefault();
+        return;
+      }
+      dragIdx = parseInt(item.dataset.idx, 10);
+      item.classList.add('dragging');
+      try { e.dataTransfer.setData('text/plain', String(dragIdx)); } catch (_) {}
+      e.dataTransfer.effectAllowed = 'move';
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = item.getBoundingClientRect();
+      const isTop = e.clientY < rect.top + rect.height / 2;
+      container.querySelectorAll('.pm-item').forEach(it => {
+        it.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      item.classList.add(isTop ? 'drag-over-top' : 'drag-over-bottom');
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+    });
+
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      item.classList.remove('drag-over-top', 'drag-over-bottom');
+      const fromIdx = dragIdx;
+      const rect = item.getBoundingClientRect();
+      const isTop = e.clientY < rect.top + rect.height / 2;
+      let toIdx = parseInt(item.dataset.idx, 10);
+      if (fromIdx < 0 || fromIdx === toIdx) return;
+      if (!isTop) toIdx += 1;
+      // 数组中移动
+      const moved = _pmProviders.splice(fromIdx, 1)[0];
+      if (toIdx > fromIdx) toIdx -= 1;
+      _pmProviders.splice(toIdx, 0, moved);
+      dragIdx = -1;
+      renderProvidersManager();
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      container.querySelectorAll('.pm-item').forEach(it => {
+        it.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      dragIdx = -1;
+    });
+  });
+}
+
+function renderProvidersManager() {
+  const el = document.getElementById('providersList');
+  if (!el) return;
+  if (!_pmProviders.length) {
+    el.innerHTML = '<div class="empty">暂无提供商配置</div>';
+    return;
+  }
+  // 已按用户手动顺序渲染，初始加载与新增提供商时由调用方排序
+  let html = '';
+  for (let i = 0; i < _pmProviders.length; i++) {
+    const p = _pmProviders[i];
+    const enabled = p.enabled ? 'checked' : '';
+    const hasKey = p.apiKey && p.apiKey.trim();
+    const isEditing = _pmEditIdx === i;
+
+    if (isEditing) {
+      // 编辑模式：显示表单
+      html += '<div class="pm-item editing" data-idx="' + i + '">' +
+        '<span class="pm-handle" title="按住上下拖动调整顺序">&#x2630;</span>' +
+        '<label class="pm-toggle">' +
+          '<input type="checkbox" ' + enabled + ' disabled>' +
+          '<span class="slider"></span>' +
+        '</label>' +
+        '<div class="pm-edit-form">' +
+          '<div class="pm-edit-row">' +
+            '<label>名称</label>' +
+            '<input type="text" id="pmEditName_' + i + '" value="' + esc(p.name) + '">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>ID</label>' +
+            '<input type="text" id="pmEditId_' + i + '" value="' + esc(p.providerId) + '" disabled title="提供商ID不可修改">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>协议</label>' +
+            '<select id="pmEditProtocol_' + i + '">' +
+              '<option value="openai"' + (p.protocol === 'openai' ? ' selected' : '') + '>OpenAI 兼容</option>' +
+              '<option value="anthropic"' + (p.protocol === 'anthropic' ? ' selected' : '') + '>Anthropic</option>' +
+              '<option value="gemini"' + (p.protocol === 'gemini' ? ' selected' : '') + '>Google Gemini</option>' +
+              '<option value="ollama"' + (p.protocol === 'ollama' ? ' selected' : '') + '>Ollama (本地)</option>' +
+              '<option value="cloudflare"' + (p.protocol === 'cloudflare' ? ' selected' : '') + '>Cloudflare Workers AI</option>' +
+            '</select>' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>Base URL</label>' +
+            '<input type="url" id="pmEditUrl_' + i + '" value="' + esc(p.baseUrl) + '">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>API Key</label>' +
+            '<input type="password" id="pmEditKey_' + i + '" value="' + esc(p.apiKey || '') + '">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>名称前缀</label>' +
+            '<input type="text" id="pmEditPrefix_' + i + '" value="' + esc(p.namePrefix || '') + '" title="同步时自动为模型显示名称加前缀，不影响申请ID">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>名称后缀</label>' +
+            '<input type="text" id="pmEditSuffix_' + i + '" value="' + esc(p.nameSuffix || '') + '" title="同步时自动为模型显示名称加后缀，不影响申请ID">' +
+          '</div>' +
+          '<div class="pm-edit-actions">' +
+            '<button class="btn btn-sm btn-secondary" onclick="cancelEditProvider()">取消</button>' +
+            '<button class="btn btn-sm btn-primary" onclick="saveEditProvider(' + i + ')">保存并同步</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    } else {
+      // 正常模式
+      html += '<div class="pm-item" data-idx="' + i + '" draggable="true">' +
+        '<span class="pm-handle" title="按住上下拖动调整顺序">&#x2630;</span>' +
+        '<label class="pm-toggle" title="' + (p.enabled ? '已启用，点击禁用' : '已禁用，点击启用') + '">' +
+          '<input type="checkbox" ' + enabled + ' onchange="toggleProvider(' + i + ', this.checked)">' +
+          '<span class="slider"></span>' +
+        '</label>' +
+        '<div class="pm-info">' +
+          '<div class="pm-name">' + esc(p.name) + ' <span style="color:var(--text2); font-weight:400; font-size:12px;">(' + esc(p.providerId) + ')</span></div>' +
+          '<div class="pm-meta">' + esc(p.protocol) + ' · ' + esc(p.baseUrl) + '</div>' +
+        '</div>' +
+        '<div class="pm-status">' +
+          (hasKey ? '<span class="tag on">有 Key</span>' : '<span class="tag">无 Key</span>') +
+        '</div>' +
+        '<input class="pm-apikey" type="password" placeholder="API Key" value="' + esc(p.apiKey || '') + '" onchange="updateApiKey(' + i + ', this.value)" title="输入 API Key">' +
+        '<button class="pm-edit" onclick="startEditProvider(' + i + ')" title="编辑此提供商">&#x270E;</button>' +
+        '<button class="pm-del" onclick="deleteProvider(' + i + ')" title="删除此提供商">&#x1f5d1;</button>' +
+      '</div>';
+    }
+  }
+  html += '<div class="pm-save"><button class="btn btn-primary" onclick="saveProvidersManager()">保存所有更改</button></div>';
+  el.innerHTML = html;
+  // 绑定拖拽事件（非编辑模式）
+  if (_pmEditIdx < 0) bindProviderDrag(el);
+}
+
+function toggleProvider(idx, enabled) {
+  if (!_pmProviders[idx]) return;
+  _pmProviders[idx].enabled = enabled;
+  // 启用状态变化时重新按规则排序（启用在前，禁用在后）
+  const moved = _pmProviders.splice(idx, 1)[0];
+  let insertAt = _pmProviders.length;
+  if (enabled) {
+    // 启用项插到第一个禁用项之前
+    insertAt = _pmProviders.findIndex(p => !p.enabled);
+    if (insertAt < 0) insertAt = _pmProviders.length;
+  }
+  _pmProviders.splice(insertAt, 0, moved);
+  renderProvidersManager();
+}
+
+function updateApiKey(idx, value) {
+  if (_pmProviders[idx]) _pmProviders[idx].apiKey = value;
+}
+
+// ====== 编辑提供商 ======
+function startEditProvider(idx) {
+  _pmEditIdx = idx;
+  renderProvidersManager();
+}
+
+function cancelEditProvider() {
+  _pmEditIdx = -1;
+  renderProvidersManager();
+}
+
+async function saveEditProvider(idx) {
+  if (!_pmProviders[idx]) return;
+  const name = document.getElementById('pmEditName_' + idx).value.trim();
+  const protocol = document.getElementById('pmEditProtocol_' + idx).value;
+  const baseUrl = document.getElementById('pmEditUrl_' + idx).value.trim();
+  const apiKey = document.getElementById('pmEditKey_' + idx).value;
+  const namePrefix = document.getElementById('pmEditPrefix_' + idx).value;
+  const nameSuffix = document.getElementById('pmEditSuffix_' + idx).value;
+
+  if (!name || !protocol || !baseUrl) {
+    toast('名称、协议和 Base URL 不能为空', 'err');
+    return;
+  }
+
+  // 应用修改
+  _pmProviders[idx].name = name;
+  _pmProviders[idx].protocol = protocol;
+  _pmProviders[idx].baseUrl = baseUrl;
+  _pmProviders[idx].apiKey = apiKey;
+  _pmProviders[idx].namePrefix = namePrefix;
+  _pmProviders[idx].nameSuffix = nameSuffix;
+
+  // 先保存到文件
+  try {
+    const data = await api('/api/providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_pmProviders)
+    });
+    if (!data.ok) {
+      toast(data.error || '保存失败', 'err');
+      return;
+    }
+  } catch (e) {
+    toast('保存失败: ' + ((e && e.message) || '未知错误'), 'err');
+    return;
+  }
+
+  toast('提供商已更新，正在同步模型列表...', 'ok');
+  _pmEditIdx = -1;
+  renderProvidersManager();
+  // 自动触发同步
+  await triggerSync(false);
+}
+
+async function deleteProvider(idx) {
+  const p = _pmProviders[idx];
+  if (!p) return;
+  if (!confirm('确定删除提供商 "' + p.name + '" (' + p.providerId + ') 吗？')) return;
+  _pmProviders.splice(idx, 1);
+  renderProvidersManager();
+}
+
+async function saveProvidersManager() {
+  try {
+    const data = await api('/api/providers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(_pmProviders)
+    });
+    if (data.ok) {
+      toast('提供商配置已保存', 'ok');
+      hideProvidersManager();
+      // 如果有启用的提供商变化，自动同步
+      await triggerSync(false);
+    } else {
+      toast(data.error || '保存失败', 'err');
+    }
+  } catch (e) {
+    toast('保存失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+
+// ====== 初始化 ======
+loadLatestModels();
+loadImportedModels();
+loadLog();
+
+// 加载已导入模型（启动时调用，不触发同步）
+async function loadImportedModels() {
+  try {
+    const imported = await api('/api/models');
+    renderImported(Array.isArray(imported) ? imported : []);
+  } catch (e) {
+    console.error('加载已导入模型失败:', e);
+  }
+}
+
+// 手动刷新已导入模型（重新读取 models.json 文件）
+async function refreshImportedModels() {
+  const btn = document.getElementById('btnRefreshImported');
+  const oldHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '刷新中...';
+  }
+  try {
+    const imported = await api('/api/models');
+    renderImported(Array.isArray(imported) ? imported : []);
+    toast('已重新读取 models.json，共 ' + (Array.isArray(imported) ? imported.length : 0) + ' 个模型', 'ok');
+  } catch (e) {
+    toast('刷新失败: ' + ((e && e.message) || '未知错误'), 'err');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = oldHtml;
+    }
+  }
+}
+
+// ====== 编辑已导入模型 ======
+let _editingModelId = ''; // 当前正在编辑的模型申请ID
+
+function editImportedModel(mid) {
+  _editingModelId = mid;
+  const m = _importedModels.find(x => x.id === mid);
+  if (!m) return;
+  const modal = document.getElementById('editModelModal');
+  if (!modal) return;
+  document.getElementById('editModelId').value = m.id || '';
+  document.getElementById('editModelName').value = (m.name && m.name !== m.id) ? m.name : '';
+  // 默认锁定申请ID
+  lockModelId();
+  modal.style.display = 'flex';
+}
+
+function hideEditModelModal() {
+  const modal = document.getElementById('editModelModal');
+  if (modal) modal.style.display = 'none';
+  _editingModelId = '';
+}
+
+function lockModelId() {
+  const input = document.getElementById('editModelId');
+  if (input) {
+    input.disabled = true;
+    input.style.background = 'var(--bg)';
+    input.style.color = 'var(--text2)';
+  }
+  const btn = document.getElementById('editModelIdUnlockBtn');
+  if (btn) btn.innerHTML = '&#x1f512; 修改ID';
+}
+
+function unlockModelId() {
+  if (!_editingModelId) return;
+  const confirmMsg = '修改申请ID会影响实际请求的模型，确认要修改吗？\n\n当前申请ID: ' + _editingModelId;
+  if (!confirm(confirmMsg)) return;
+  const input = document.getElementById('editModelId');
+  if (input) {
+    input.disabled = false;
+    input.style.background = '';
+    input.style.color = '';
+    input.focus();
+  }
+  const btn = document.getElementById('editModelIdUnlockBtn');
+  if (btn) btn.innerHTML = '&#x1f513; 取消修改';
+}
+
+async function saveImportedModel() {
+  if (!_editingModelId) return;
+  const newId = document.getElementById('editModelId').value.trim();
+  const name = document.getElementById('editModelName').value.trim();
+  if (!newId) {
+    toast('申请ID不能为空', 'err');
+    return;
+  }
+  try {
+    const data = await api('/api/models/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ old_id: _editingModelId, id: newId, name: name })
+    });
+    if (data.ok) {
+      toast(data.message || '模型已更新', 'ok');
+      hideEditModelModal();
+      await refreshImportedModels();
+    } else {
+      toast(data.error || '更新失败', 'err');
+    }
+  } catch (e) {
+    toast('更新失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+
+// ====== 切换模型使用的提供商/Key ======
+function openModelKeySwitch(modelId) {
+  const options = modelProviderOptions({ id: modelId });
+  if (!options.length) {
+    toast('未找到该模型的其它提供商', 'err');
+    return;
+  }
+  document.getElementById('switchModelId').textContent = modelId;
+  const list = document.getElementById('switchKeyList');
+  // 当前已导入的模型（判断当前用哪个）
+  const cur = _importedModels.find(x => x.id === modelId);
+  const curPid = cur ? cur.providerId : '';
+  const curKey = cur ? cur.apiKey : '';
+
+  let html = '';
+  for (const opt of options) {
+    const name = opt.name || opt.providerId || opt.vendor || '';
+    const isCur = opt.providerId === curPid || (opt.apiKey && opt.apiKey === curKey);
+    const url = opt.url || '';
+    const apiKeyShort = opt.apiKey ? opt.apiKey.slice(0, 10) + '...' : '无Key';
+    html += '<div class="sk-item' + (isCur ? ' active' : '') + '" onclick="doSwitchModelKey(\'' + esc(modelId) + '\', \'' + esc(opt.providerId || '') + '\')">' +
+      '<div class="sk-name">' + esc(name) + (isCur ? ' <span class="sk-cur">当前</span>' : '') + '</div>' +
+      '<div class="sk-meta">' + esc(url) + ' · ' + esc(apiKeyShort) + '</div>' +
+    '</div>';
+  }
+  list.innerHTML = html || '<div class="empty">无可用提供商</div>';
+  const modal = document.getElementById('switchKeyModal');
+  if (modal) modal.style.display = 'flex';
+}
+
+function hideSwitchKeyModal() {
+  const modal = document.getElementById('switchKeyModal');
+  if (modal) modal.style.display = 'none';
+}
+
+async function doSwitchModelKey(modelId, providerId) {
+  const opt = modelProviderOptions({ id: modelId }).find(o => o.providerId === providerId);
+  const targetName = opt ? (opt.name || opt.providerId || '') : providerId;
+  const cur = _importedModels.find(x => x.id === modelId);
+  const curName = cur ? (cur.vendor || cur.providerId || '未知') : '未知';
+
+  // 确认切换：从当前提供商切到目标提供商
+  const msg = '确认切换模型 ' + modelId + ' 使用的提供商吗？\n\n' +
+    '  当前：' + curName + '\n' +
+    '  切换为：' + targetName + '\n\n' +
+    '切换后 WorkBuddy 将使用新提供商的 API Key。';
+  if (!confirm(msg)) return;
+
+  try {
+    const data = await api('/api/models/switch-key', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: modelId, providerId: providerId })
+    });
+    if (data.ok) {
+      toast(data.message || '切换成功', 'ok');
+      hideSwitchKeyModal();
+      await refreshImportedModels();
+    } else {
+      toast(data.error || '切换失败', 'err');
+    }
+  } catch (e) {
+    toast('切换失败: ' + ((e && e.message) || '未知错误'), 'err');
+  }
+}
+</script>
+</body>
+</html>

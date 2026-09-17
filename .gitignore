@@ -1,0 +1,6 @@
+# 密钥与运行时数据，禁止提交
+secrets.json
+latest-models.json
+selected-models.json
+sync-state.json
+sync-report.log

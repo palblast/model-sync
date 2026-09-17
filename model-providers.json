@@ -1,0 +1,167 @@
+[
+  {
+    "providerId": "nvidia",
+    "name": "NVIDIA NIM",
+    "protocol": "openai",
+    "baseUrl": "https://integrate.api.nvidia.com/v1",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [
+        "kimi",
+        "deepseek-reasoner",
+        "o1",
+        "o3",
+        "r1"
+      ],
+      "visionPatterns": [
+        "vision",
+        "kimi",
+        "gemini",
+        "4o",
+        "5"
+      ],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed",
+        "rerank",
+        "guard"
+      ]
+    }
+  },
+  {
+    "providerId": "siliconflow",
+    "name": "硅基流动 (SiliconFlow)",
+    "protocol": "openai",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [],
+      "visionPatterns": [],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed"
+      ]
+    }
+  },
+  {
+    "providerId": "deepseek",
+    "name": "DeepSeek (深度求索)",
+    "protocol": "openai",
+    "baseUrl": "https://api.deepseek.com",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [
+        "reasoner",
+        "r1"
+      ],
+      "visionPatterns": [],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed"
+      ]
+    }
+  },
+  {
+    "providerId": "moonshot",
+    "name": "Moonshot (月之暗面 Kimi)",
+    "protocol": "openai",
+    "baseUrl": "https://api.moonshot.cn",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [
+        "kimi"
+      ],
+      "visionPatterns": [
+        "kimi"
+      ],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed"
+      ]
+    }
+  },
+  {
+    "providerId": "openai",
+    "name": "OpenAI",
+    "protocol": "openai",
+    "baseUrl": "https://api.openai.com",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [
+        "o1",
+        "o3",
+        "o4",
+        "reasoner"
+      ],
+      "visionPatterns": [
+        "4o",
+        "5",
+        "vision",
+        "gpt-4o"
+      ],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed",
+        "tts",
+        "whisper",
+        "davinci"
+      ]
+    }
+  },
+  {
+    "providerId": "zhipu",
+    "name": "智谱 GLM (Zhipu)",
+    "protocol": "openai",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [
+        "glm-5",
+        "glm-4",
+        "reasoner"
+      ],
+      "visionPatterns": [
+        "glm-5",
+        "glm-4",
+        "vision"
+      ],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed",
+        "rerank"
+      ]
+    }
+  },
+  {
+    "providerId": "ollama",
+    "name": "Ollama (本地部署)",
+    "protocol": "ollama",
+    "baseUrl": "http://127.0.0.1:11434",
+    "enabled": false,
+    "modelRules": {
+      "reasoningPatterns": [],
+      "visionPatterns": [
+        "vision",
+        "llava"
+      ],
+      "toolCallPatterns": [
+        "*"
+      ],
+      "excludeToolCallPatterns": [
+        "embed"
+      ]
+    }
+  }
+]
