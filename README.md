@@ -137,6 +137,8 @@ python model-sync.py --import-selected
   "modelRules": {
     "reasoningPatterns": ["o1", "r1"],
     "excludeReasoningPatterns": ["embedding", "rerank"],
+    "reasoningEfforts": ["low", "medium", "high"],
+    "defaultReasoningEffort": "high",
     "visionPatterns": ["vision", "4o"],
     "toolCallPatterns": ["*"],
     "excludeToolCallPatterns": ["embed"]
@@ -154,6 +156,17 @@ python model-sync.py --import-selected
 | `baseUrl` | 接口地址 |
 | `enabled` | 是否启用 |
 | `modelRules` | 能力推断规则，用于判断模型是否支持工具调用、图片、推理 |
+
+`modelRules` 内的字段：
+
+| 字段 | 说明 |
+|------|------|
+| `reasoningPatterns` | 模型名包含其中任一关键词即标记「支持思考」 |
+| `excludeReasoningPatterns` | 命中则不标记思考（用于排除向量化、重排等非对话模型） |
+| `reasoningEfforts` | 该服务商官方支持的思考档位列表 |
+| `defaultReasoningEffort` | 默认思考档位（默认 `high`） |
+| `visionPatterns` | 模型名包含其中任一关键词即标记「支持图片识别」 |
+| `toolCallPatterns` / `excludeToolCallPatterns` | 工具调用的正向匹配与排除 |
 
 ### 关于「思考模式」规则
 
@@ -180,19 +193,43 @@ python model-sync.py --import-selected
 
 **已经导入过的模型不需要先删除** —— 重新导入会刷新它们的思考标记，同时保留你自己设置的显示名称、思考强度和密钥。
 
+#### 关于思考档位（低 / 中 / 高）
+
+不同服务商**官方支持的档位并不一致**，填错会导致接口报错或档位被静默映射。因此档位列表与默认值都可以按服务商配置：
+
+| 字段 | 作用 | 默认值 |
+|------|------|--------|
+| `reasoningEfforts` | 该服务商官方支持的档位列表 | `["low", "medium", "high"]` |
+| `defaultReasoningEffort` | 模型未单独设置时使用的档位 | `"high"` |
+
+**各服务商官方档位对照（依据官方文档整理）：**
+
+| 服务商 / 模型 | 官方支持的档位 | 说明 |
+|---------------|----------------|------|
+| DeepSeek | `low`、`high`、`max` | 官方默认即为 `high`；`medium`、`xhigh` 会被映射为 `high` |
+| 智谱 GLM-5.3 / 5.3-FLASH | **仅** `max`、`high`、`low` | ⚠️ 传其他值**会直接报错** |
+| 智谱 GLM-5.2 及以上 | `max`（默认）、`xhigh`、`high`、`medium`、`low`、`minimal`、`none` | `low`/`medium` 映射为 `high`，`xhigh` 映射为 `max` |
+| OpenAI GPT-5 系列 / gpt-oss | `minimal`、`low`、`medium`、`high` | 部分模型不接受 `minimal` |
+| Gemini 3 系列 | `low`、`high` | 部分模型不接受 `xhigh` |
+| MiniMax-M3 | `minimal`、`low`、`medium`、`high` | 仅为兼容参数，**不调节实际推理深度**；默认关闭思考 |
+
+> 说明：上表依据各服务商官方文档整理，并已对内置服务商的代表模型做过实测校验。各服务商仍在持续调整参数，如遇报错请以官方文档为准，并把该档位从 `reasoningEfforts` 中移除。
+
+**为什么默认是 `high`？** DeepSeek、GLM 等主流服务商的官方推荐默认档位都是 `high`（深度推理）；把它作为默认值，可以避免模型在默认状态下只做「轻度推理」。
+
 #### 内置服务商的默认规则
 
-| 服务商 | 思考匹配规则 |
-|--------|--------------|
-| NVIDIA NIM | `kimi`、`deepseek-reasoner`、`o1`、`o3`、`r1`、`glm-5`、`gpt-oss`、`nemotron-3`、`nemotron-nano-3`、`nemotron-ultra`、`reasoning` |
-| 硅基流动 | `qwen3`、`glm-4.5`、`glm-5`、`glm-z1`、`deepseek-r1`、`deepseek-v3.1`、`deepseek-v3.2`、`deepseek-v4`、`kimi`、`hunyuan`、`hy4`、`thinking`、`step-3`、`minimax` |
-| DeepSeek | `reasoner`、`r1` |
-| Moonshot (Kimi) | `kimi` |
-| OpenAI | `o1`、`o3`、`o4`、`reasoner` |
-| 智谱 GLM | `glm-5`、`glm-4`、`reasoner` |
-| Ollama | 默认留空（本地模型命名差异大，建议按你的实际模型名自行填写） |
+| 服务商 | 思考匹配规则 | 思考档位 |
+|--------|--------------|----------|
+| NVIDIA NIM | `kimi`、`deepseek-reasoner`、`o1`、`o3`、`r1`、`glm-5`、`gpt-oss`、`nemotron-3`、`nemotron-nano-3`、`nemotron-ultra`、`reasoning` | `low`/`medium`/`high` |
+| 硅基流动 | `qwen3`、`glm-4.5`、`glm-5`、`glm-z1`、`deepseek-r1`、`deepseek-v3.1`、`deepseek-v3.2`、`deepseek-v4`、`kimi`、`hunyuan`、`hy4`、`thinking`、`step-3`、`minimax` | `low`/`medium`/`high` |
+| DeepSeek | `reasoner`、`r1` | `low`/`high`/`max` |
+| Moonshot (Kimi) | `kimi` | `low`/`medium`/`high` |
+| OpenAI | `o1`、`o3`、`o4`、`reasoner` | `low`/`medium`/`high` |
+| 智谱 GLM | `glm-5`、`glm-4`、`reasoner` | `low`/`high`/`max` |
+| Ollama | 默认留空（本地模型命名差异大，建议按你的实际模型名自行填写） | 默认 |
 
-> ⚠️ 不同服务商对「思考强度」的支持程度不同。若某个模型实际不支持该参数，多数服务商接口会忽略它；如遇到报错，把该模型从思考规则中排除即可。
+> ⚠️ 若某个模型实际不支持所设档位，接口可能报错。遇到报错时，把该档位从该服务商的 `reasoningEfforts` 中移除，或把该模型加入 `excludeReasoningPatterns`。
 
 ### 关于密钥
 
@@ -262,6 +299,12 @@ API 密钥**不写在 `model-providers.json` 里**，而是由网页界面自动
 ### 设置了思考强度，为什么重新导入后还在？
 
 放心，会保留。重新导入只刷新模型的能力标记（是否支持思考、视觉、工具调用），你在软件里设置的**显示名称和已选思考强度都会保留**。
+
+### 默认思考强度是什么？为什么不是最低档？
+
+默认是 **`high`（高强度）**。这与 DeepSeek、智谱 GLM 等主流服务商的官方推荐默认档一致；若默认落在最低档，模型在默认状态下只会做「轻度推理」，复杂任务的表现会明显下降。
+
+想改成别的默认档，把该服务商的 `defaultReasoningEffort` 改成 `low` 或 `medium` 即可（部分服务商如 DeepSeek、GLM 只支持 `low`/`high`/`max`，没有 `medium`）。
 
 ### 端口被占用
 

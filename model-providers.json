@@ -31,6 +31,12 @@
         "detector",
         "calibration"
       ],
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultReasoningEffort": "high",
       "visionPatterns": [
         "vision",
         "kimi",
@@ -84,6 +90,12 @@
         "gsr",
         "image"
       ],
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "defaultReasoningEffort": "high",
       "visionPatterns": [],
       "toolCallPatterns": [
         "*"
@@ -104,6 +116,12 @@
         "reasoner",
         "r1"
       ],
+      "reasoningEfforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
       "visionPatterns": [],
       "toolCallPatterns": [
         "*"
@@ -176,6 +194,12 @@
         "glm-4",
         "reasoner"
       ],
+      "reasoningEfforts": [
+        "low",
+        "high",
+        "max"
+      ],
+      "defaultReasoningEffort": "high",
       "visionPatterns": [
         "glm-5",
         "glm-4",

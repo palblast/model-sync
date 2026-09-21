@@ -251,6 +251,24 @@ def _match_any(name_lower: str, patterns: List[str]) -> bool:
     return any(p and p in name_lower for p in patterns)
 
 
+# 思考强度的默认档位与默认值。
+# 说明：不同服务商官方支持的档位并不一致（详见 README「关于思考模式规则」），
+# 因此档位列表与默认值都允许在 provider 的 modelRules 里按服务商覆盖。
+# 默认档位取 low/medium/high —— 这三档被各主流服务商普遍接受；
+# 默认值取 high —— 多数服务商（DeepSeek、GLM 等）官方推荐的高强度档。
+DEFAULT_REASONING_EFFORTS = ["low", "medium", "high"]
+DEFAULT_REASONING_EFFORT = "high"
+
+
+def _normalize_efforts(value: Any) -> List[str]:
+    """把配置里的档位列表规整为字符串列表；非法输入回退到默认档位。"""
+    if isinstance(value, (list, tuple)):
+        out = [str(v).strip() for v in value if str(v).strip()]
+        if out:
+            return out
+    return list(DEFAULT_REASONING_EFFORTS)
+
+
 def infer_capabilities(
     model_id: str, rules: Dict[str, List[str]]
 ) -> Dict[str, Any]:
@@ -262,9 +280,11 @@ def infer_capabilities(
         visionPatterns           正向匹配：命中则标记"支持视觉"
         toolCallPatterns         正向匹配：命中则标记"支持工具调用"
         excludeToolCallPatterns  反向排除：命中则不标记工具调用
+        reasoningEfforts         该服务商官方支持的思考档位列表（覆盖默认值）
+        defaultReasoningEffort   默认思考档位（覆盖默认值，默认 high）
 
     返回 dict 含 supportsToolCall / supportsImages / supportsReasoning
-    以及（若 supportsReasoning=True）reasoning.supportedEfforts。
+    以及（若 supportsReasoning=True）reasoning.supportedEfforts 与 defaultEffort。
     """
     name_lower = model_id.lower()
     reasoning_p = rules.get("reasoningPatterns", [])
@@ -291,7 +311,15 @@ def infer_capabilities(
         "supportsReasoning": bool(supports_reasoning),
     }
     if supports_reasoning:
-        result["reasoning"] = {"supportedEfforts": ["low", "medium", "high"]}
+        efforts = _normalize_efforts(rules.get("reasoningEfforts"))
+        # 默认档位必须落在可选档位内，否则回退到档位列表中的 high（无 high 则取末项）
+        wanted = str(rules.get("defaultReasoningEffort") or DEFAULT_REASONING_EFFORT).strip()
+        if wanted not in efforts:
+            wanted = "high" if "high" in efforts else efforts[-1]
+        result["reasoning"] = {
+            "supportedEfforts": efforts,
+            "defaultEffort": wanted,
+        }
     return result
 
 

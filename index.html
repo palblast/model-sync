@@ -753,9 +753,11 @@ function modelEffortInfo(m) {
   const supported = Array.isArray(r.supportedEfforts) && r.supportedEfforts.length
     ? r.supportedEfforts
     : ['low', 'medium', 'high'];
+  // 未设置时优先落到 high（默认高强度），没有 high 才退回第一项，避免默认变成最低档
+  const fallback = supported.indexOf('high') >= 0 ? 'high' : supported[0];
   const current = r.defaultEffort && supported.indexOf(r.defaultEffort) >= 0
     ? r.defaultEffort
-    : supported[0];
+    : fallback;
   return { supported: supported, current: current };
 }
 
