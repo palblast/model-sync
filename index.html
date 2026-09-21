@@ -376,6 +376,16 @@ body.has-selection { padding-bottom: 200px; }
         <div style="font-size:12px; color:var(--text2); margin-top:4px;">同步时自动为模型显示名称加后缀，不影响申请ID。</div>
       </div>
       <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">思考匹配规则（可选）</label>
+        <input type="text" id="providerReasoningPatterns" placeholder="例如: glm, kimi, deepseek（逗号分隔）" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+        <div style="font-size:12px; color:var(--text2); margin-top:4px;">模型名包含这些关键词时，标记为“支持思考”，即可在 WorkBuddy 中设置思考强度。用逗号分隔；填 * 表示全部模型；留空则本服务商都不标记思考。</div>
+      </div>
+      <div style="margin-bottom:12px;">
+        <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">思考排除规则（可选）</label>
+        <input type="text" id="providerExcludeReasoningPatterns" placeholder="例如: embedding, rerank, asr（逗号分隔）" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+        <div style="font-size:12px; color:var(--text2); margin-top:4px;">命中这些关键词的模型不算思考，用于排除向量化、重排、语音识别等不能对话的模型。</div>
+      </div>
+      <div style="margin-bottom:12px;">
         <label style="display:block; margin-bottom:4px; font-weight:600; font-size:14px;">API Key</label>
         <input type="password" id="providerApiKey" placeholder="可选，某些提供商需要" style="width:100%; padding:8px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
       </div>
@@ -1687,7 +1697,14 @@ async function addProvider(event) {
     apiKey: document.getElementById('providerApiKey').value,
     namePrefix: document.getElementById('providerNamePrefix').value,
     nameSuffix: document.getElementById('providerNameSuffix').value,
-    enabled: document.getElementById('providerEnabled').checked
+    enabled: document.getElementById('providerEnabled').checked,
+    modelRules: {
+      reasoningPatterns: splitPatterns(document.getElementById('providerReasoningPatterns').value),
+      excludeReasoningPatterns: splitPatterns(document.getElementById('providerExcludeReasoningPatterns').value),
+      visionPatterns: [],
+      toolCallPatterns: ['*'],
+      excludeToolCallPatterns: ['embed']
+    }
   };
 
   if (!provider.providerId || !provider.name || !provider.protocol || !provider.baseUrl) {
@@ -1834,6 +1851,10 @@ function renderProvidersManager() {
     const enabled = p.enabled ? 'checked' : '';
     const hasKey = p.apiKey && p.apiKey.trim();
     const isEditing = _pmEditIdx === i;
+    // 思考能力规则（模型名关键词），供编辑表单回显
+    const pmRules = p.modelRules || {};
+    const reasonText = Array.isArray(pmRules.reasoningPatterns) ? pmRules.reasoningPatterns.join(', ') : '';
+    const excludeReasonText = Array.isArray(pmRules.excludeReasoningPatterns) ? pmRules.excludeReasoningPatterns.join(', ') : '';
 
     if (isEditing) {
       // 编辑模式：显示表单
@@ -1878,6 +1899,15 @@ function renderProvidersManager() {
             '<label>名称后缀</label>' +
             '<input type="text" id="pmEditSuffix_' + i + '" value="' + esc(p.nameSuffix || '') + '" title="同步时自动为模型显示名称加后缀，不影响申请ID">' +
           '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>思考匹配规则</label>' +
+            '<input type="text" id="pmEditReason_' + i + '" value="' + esc(reasonText) + '" placeholder="例如: glm, kimi, deepseek（逗号分隔）" title="模型名包含这些关键词时，标记为“支持思考”，即可在 WorkBuddy 中设置思考强度。用逗号分隔多个关键词；填 * 表示全部模型。留空则本服务商都不标记思考。">' +
+          '</div>' +
+          '<div class="pm-edit-row">' +
+            '<label>思考排除规则</label>' +
+            '<input type="text" id="pmEditExcludeReason_' + i + '" value="' + esc(excludeReasonText) + '" placeholder="例如: embedding, rerank, asr（逗号分隔）" title="模型名命中这些关键词时，即使符合上面的规则也不算思考。用于排除向量化、重排、语音识别等不能对话的模型。">' +
+          '</div>' +
+          '<div class="pm-edit-tip" style="font-size:12px; color:var(--text2); margin:2px 0 6px;">思考规则说明：模型名包含“思考匹配规则”里的关键词，就会被标记为支持思考，界面上才会出现思考强度选项；命中“思考排除规则”的则不标记。</div>' +
           '<div class="pm-edit-actions">' +
             '<button class="btn btn-sm btn-secondary" onclick="cancelEditProvider()">取消</button>' +
             '<button class="btn btn-sm btn-primary" onclick="saveEditProvider(' + i + ')">保存并同步</button>' +
@@ -1895,6 +1925,11 @@ function renderProvidersManager() {
         '<div class="pm-info">' +
           '<div class="pm-name">' + esc(p.name) + ' <span style="color:var(--text2); font-weight:400; font-size:12px;">(' + esc(p.providerId) + ')</span></div>' +
           '<div class="pm-meta">' + esc(p.protocol) + ' · ' + esc(p.baseUrl) + '</div>' +
+          '<div class="pm-meta" style="font-size:11px;">' +
+            (pmRules.reasoningPatterns && pmRules.reasoningPatterns.length
+              ? '思考规则: ' + esc(pmRules.reasoningPatterns.join(', '))
+              : '<span style="color:var(--text2);">思考规则: 未设置（本服务商模型不会有思考选项）</span>') +
+          '</div>' +
         '</div>' +
         '<div class="pm-status">' +
           (hasKey ? '<span class="tag on">有 Key</span>' : '<span class="tag">无 Key</span>') +
@@ -1936,6 +1971,20 @@ function startEditProvider(idx) {
   renderProvidersManager();
 }
 
+// 把"glm, kimi, deepseek"这类文本切成关键词数组（兼容中英文逗号、顿号、空格、换行）
+function splitPatterns(text) {
+  if (!text) return [];
+  return String(text)
+    .split(/[,，、\s]+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+}
+
+// 把关键词数组拼回可编辑文本
+function joinPatterns(arr) {
+  return Array.isArray(arr) ? arr.join(', ') : '';
+}
+
 function cancelEditProvider() {
   _pmEditIdx = -1;
   renderProvidersManager();
@@ -1949,6 +1998,8 @@ async function saveEditProvider(idx) {
   const apiKey = document.getElementById('pmEditKey_' + idx).value;
   const namePrefix = document.getElementById('pmEditPrefix_' + idx).value;
   const nameSuffix = document.getElementById('pmEditSuffix_' + idx).value;
+  const reasonRaw = document.getElementById('pmEditReason_' + idx).value;
+  const excludeReasonRaw = document.getElementById('pmEditExcludeReason_' + idx).value;
 
   if (!name || !protocol || !baseUrl) {
     toast('名称、协议和 Base URL 不能为空', 'err');
@@ -1962,6 +2013,17 @@ async function saveEditProvider(idx) {
   _pmProviders[idx].apiKey = apiKey;
   _pmProviders[idx].namePrefix = namePrefix;
   _pmProviders[idx].nameSuffix = nameSuffix;
+
+  // 思考规则：写入 modelRules（保留视觉、工具等其它已有规则）
+  if (!_pmProviders[idx].modelRules || typeof _pmProviders[idx].modelRules !== 'object') {
+    _pmProviders[idx].modelRules = {
+      visionPatterns: [],
+      toolCallPatterns: ['*'],
+      excludeToolCallPatterns: ['embed']
+    };
+  }
+  _pmProviders[idx].modelRules.reasoningPatterns = splitPatterns(reasonRaw);
+  _pmProviders[idx].modelRules.excludeReasoningPatterns = splitPatterns(excludeReasonRaw);
 
   // 先保存到文件
   try {

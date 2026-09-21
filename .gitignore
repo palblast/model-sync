@@ -4,3 +4,12 @@ latest-models.json
 selected-models.json
 sync-state.json
 sync-report.log
+
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+
+# 打包产物（体积大，可通过源码重新生成，不上传）
+build/
+dist/
+*.spec

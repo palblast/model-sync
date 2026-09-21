@@ -11,7 +11,25 @@
         "deepseek-reasoner",
         "o1",
         "o3",
-        "r1"
+        "r1",
+        "glm-5",
+        "gpt-oss",
+        "nemotron-3",
+        "nemotron-nano-3",
+        "nemotron-ultra",
+        "reasoning"
+      ],
+      "excludeReasoningPatterns": [
+        "embed",
+        "rerank",
+        "guard",
+        "safety",
+        "parse",
+        "reward",
+        "translate",
+        "retriever",
+        "detector",
+        "calibration"
       ],
       "visionPatterns": [
         "vision",
@@ -37,7 +55,35 @@
     "baseUrl": "https://api.siliconflow.cn/v1",
     "enabled": false,
     "modelRules": {
-      "reasoningPatterns": [],
+      "reasoningPatterns": [
+        "qwen3",
+        "glm-4.5",
+        "glm-5",
+        "glm-z1",
+        "deepseek-r1",
+        "deepseek-v3.1",
+        "deepseek-v3.2",
+        "deepseek-v4",
+        "kimi",
+        "hunyuan",
+        "hy4",
+        "thinking",
+        "step-3",
+        "minimax"
+      ],
+      "excludeReasoningPatterns": [
+        "embedding",
+        "reranker",
+        "rerank",
+        "asr",
+        "ocr",
+        "captioner",
+        "mt-",
+        "tts",
+        "diarize",
+        "gsr",
+        "image"
+      ],
       "visionPatterns": [],
       "toolCallPatterns": [
         "*"

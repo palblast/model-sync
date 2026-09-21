@@ -256,16 +256,27 @@ def infer_capabilities(
 ) -> Dict[str, Any]:
     """按 provider 配置的 modelRules 推断模型能力标记。
 
+    规则字段（均可缺省）：
+        reasoningPatterns        正向匹配：命中则标记"支持思考"
+        excludeReasoningPatterns 反向排除：命中则不算思考（如 embedding/rerank 等非对话模型）
+        visionPatterns           正向匹配：命中则标记"支持视觉"
+        toolCallPatterns         正向匹配：命中则标记"支持工具调用"
+        excludeToolCallPatterns  反向排除：命中则不标记工具调用
+
     返回 dict 含 supportsToolCall / supportsImages / supportsReasoning
     以及（若 supportsReasoning=True）reasoning.supportedEfforts。
     """
     name_lower = model_id.lower()
     reasoning_p = rules.get("reasoningPatterns", [])
+    exclude_reasoning_p = rules.get("excludeReasoningPatterns", [])
     vision_p = rules.get("visionPatterns", [])
     tool_p = rules.get("toolCallPatterns", [])
     exclude_tool_p = rules.get("excludeToolCallPatterns", [])
 
-    supports_reasoning = _match_any(name_lower, reasoning_p)
+    # reasoning: 先看正向匹配，再看排除项（排除项优先，避免 embed/rerank 被误标）
+    supports_reasoning = _match_any(name_lower, reasoning_p) and not _match_any(
+        name_lower, exclude_reasoning_p
+    )
     supports_images = _match_any(name_lower, vision_p)
 
     # tool call: 先看正向匹配，再看排除项
@@ -728,6 +739,10 @@ def import_selected() -> int:
     """从 selected-models.json 读取选中的模型 ID，从 latest-models.json 中筛选后写入 models.json。
 
     保留不属于任何已配置 provider 的手动模型。
+
+    对已经导入过的模型：刷新其能力标记（思考/视觉/工具调用），使提供商
+    规则调整后重新导入即可生效，无需先删除；用户自己设置的内容
+    （显示名称、已选思考强度、密钥、地址）保持不变。
     """
     if not SELECTED_MODELS_PATH.exists():
         print("  ! selected-models.json 不存在，请先同步并选择模型", file=sys.stderr)
@@ -793,18 +808,55 @@ def import_selected() -> int:
     ))
     print(f"  保留 {manual_count} 个手动添加的模型")
 
-    # 合并现有 + 新增，按 (providerId, id) 去重（保留已有模型，追加新选中的模型）
+    # 合并现有 + 新增，按 (providerId, id) 去重
+    # - 新模型：直接加入
+    # - 已导入的模型：刷新"能力标记"（思考/视觉/工具调用），使提供商规则调整后
+    #   （例如补上思考匹配规则）无需删除重导即可生效；
+    #   同时保留用户自己的设置：显示名称、已选思考强度、密钥、地址等一律不动。
     merged_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
     for e in existing:
         if e.get("id"):
             merged_map[(e.get("providerId", ""), e["id"])] = e
     added = 0
+    refreshed = 0
     for e in selected_entries:
-        if e.get("id") and (e.get("providerId", ""), e["id"]) not in merged_map:
-            merged_map[(e.get("providerId", ""), e["id"])] = e
+        if not e.get("id"):
+            continue
+        key = (e.get("providerId", ""), e["id"])
+        old = merged_map.get(key)
+        if old is None:
+            merged_map[key] = e
             added += 1
+            continue
+
+        # 已有条目：仅刷新能力标记
+        old_reasoning = old.get("reasoning") if isinstance(old.get("reasoning"), dict) else {}
+        changed = False
+        for field in ("supportsToolCall", "supportsImages", "supportsReasoning"):
+            new_val = bool(e.get(field, False))
+            if old.get(field) != new_val:
+                changed = True
+            old[field] = new_val
+        # reasoning 单独处理：用新规则生成的可选强度，但保留用户已选的思考强度
+        new_reasoning = e.get("reasoning") if isinstance(e.get("reasoning"), dict) else {}
+        if old.get("supportsReasoning"):
+            merged_reasoning = dict(new_reasoning)
+            if old_reasoning.get("defaultEffort"):
+                merged_reasoning["defaultEffort"] = old_reasoning["defaultEffort"]
+            if old.get("reasoning") != merged_reasoning:
+                changed = True
+            old["reasoning"] = merged_reasoning
+        elif old.get("reasoning") is not None:
+            # 规则改为不支持思考：移除遗留的 reasoning 字段，保持数据一致
+            old.pop("reasoning", None)
+            changed = True
+
+        if changed:
+            refreshed += 1
+
     final = list(merged_map.values())
-    print(f"  新增 {added} 个模型 | 保留已有 {len(existing)} 个 | 最终写入 {len(final)} 个模型")
+    print(f"  新增 {added} 个模型 | 刷新能力标记 {refreshed} 个 | "
+          f"保留已有 {len(existing)} 个 | 最终写入 {len(final)} 个模型")
 
     ok = atomic_write_json(MODELS_JSON_PATH, final)
     if not ok:
@@ -812,7 +864,8 @@ def import_selected() -> int:
         return 2
 
     write_sync_state("imported", [])
-    append_report(f"选择性导入 {len(selected_entries)} 个模型 | 新增 {added} 个 | 保留已有 {len(existing)} | 共 {len(final)}")
+    append_report(f"选择性导入 {len(selected_entries)} 个模型 | 新增 {added} 个 | "
+                  f"刷新能力 {refreshed} 个 | 保留已有 {len(existing)} | 共 {len(final)}")
     print(f"  -> {MODELS_JSON_PATH} 已更新")
     print(f"  -> {SYNC_STATE_PATH} 已更新")
     return 0

@@ -22,34 +22,74 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
+import threading
 import time
+import webbrowser
 import urllib.request
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-BASE_DIR = Path(__file__).resolve().parent
+# ---- 打包适配：单文件 EXE 运行时 __file__ 指向临时解压目录，需与可写目录分离 ----
+FROZEN = bool(getattr(sys, "frozen", False))
+# 可写/配置类文件（密钥、同步状态、日志等）放在 exe 所在目录，避免单次启动后被清理
+APP_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent
+# 只读资源（网页界面 index.html、默认服务商模板）取自 PyInstaller 内置解压目录
+RES_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
+
 HOME = Path(os.path.expanduser("~"))
 MODELS_JSON_PATH = HOME / ".workbuddy" / "models.json"
-PROVIDERS_JSON_PATH = BASE_DIR / "model-providers.json"
-SYNC_STATE_PATH = BASE_DIR / "sync-state.json"
-SYNC_REPORT_PATH = BASE_DIR / "sync-report.log"
-LATEST_MODELS_PATH = BASE_DIR / "latest-models.json"
-SELECTED_MODELS_PATH = BASE_DIR / "selected-models.json"
-INDEX_HTML = BASE_DIR / "index.html"
+PROVIDERS_JSON_PATH = APP_DIR / "model-providers.json"
+SYNC_STATE_PATH = APP_DIR / "sync-state.json"
+SYNC_REPORT_PATH = APP_DIR / "sync-report.log"
+LATEST_MODELS_PATH = APP_DIR / "latest-models.json"
+SELECTED_MODELS_PATH = APP_DIR / "selected-models.json"
+INDEX_HTML = RES_DIR / "index.html"
 # [Key 隔离] 密钥单独存放，不进 git
-SECRETS_JSON_PATH = Path(os.environ.get("MS_SECRETS", str(BASE_DIR / "secrets.json")))
-
-# [跨平台] 使用当前正在运行本服务的 Python 解释器来执行子脚本，
-# 避免硬编码本机安装路径（不同用户/系统的 Python 位置不同）。
-PYTHON_EXE = sys.executable
-MODEL_SYNC_PY = str(BASE_DIR / "model-sync.py")
+SECRETS_JSON_PATH = Path(os.environ.get("MS_SECRETS", str(APP_DIR / "secrets.json")))
 
 # CORS / 安全：仅本机访问
 ALLOWED_ORIGIN = "*"
+
+
+def _sync_in_process(dry_run: bool, import_selected: bool = False):
+    """打包适配：单文件 EXE 内没有独立 Python 可派生子进程，改为进程内调用 model-sync。
+
+    同步/导入前把 model_sync 模块的路径常量与本次服务保持一致（指向 exe 所在目录），
+    并捕获其标准输出/错误，维持与原 subprocess 返回结构一致 {returncode, stdout, stderr}。
+    """
+    import contextlib
+    import importlib.util
+    import io
+
+    # 文件名是 model-sync.py（连字符），无法用普通 import 引入，按实际路径加载
+    src = RES_DIR / "model-sync.py"
+    spec = importlib.util.spec_from_file_location("model_sync", str(src))
+    model_sync = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(model_sync)
+
+    model_sync.HOME = HOME
+    model_sync.MODELS_JSON_PATH = MODELS_JSON_PATH
+    model_sync.PROVIDERS_JSON_PATH = PROVIDERS_JSON_PATH
+    model_sync.SYNC_STATE_PATH = SYNC_STATE_PATH
+    model_sync.SYNC_REPORT_PATH = SYNC_REPORT_PATH
+    model_sync.LATEST_MODELS_PATH = LATEST_MODELS_PATH
+    model_sync.SELECTED_MODELS_PATH = SELECTED_MODELS_PATH
+    model_sync.SECRETS_JSON_PATH = SECRETS_JSON_PATH
+
+    out, err = io.StringIO(), io.StringIO()
+    try:
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            if import_selected:
+                rc = model_sync.import_selected()
+            else:
+                rc = model_sync.sync(dry_run=dry_run, verbose=False, save_list=not dry_run)
+    except Exception as e:  # 同步过程异常不应拖垮服务线程
+        err.write(f"\n[error] {e}")
+        rc = 1
+    return rc, out.getvalue(), err.getvalue()
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -245,24 +285,12 @@ class Handler(BaseHTTPRequestHandler):
     # --- 业务逻辑 -------------------------------------------------------
     def _handle_sync(self, qs: dict):
         dry_run = qs.get("dry-run", ["0"])[0] in ("1", "true", "True")
-        args = [PYTHON_EXE, MODEL_SYNC_PY]
-        if dry_run:
-            args.append("--dry-run")
-        else:
-            args.append("--save-list")
         try:
-            proc = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                encoding="utf-8",
-                errors="replace",
-            )
+            rc, stdout, stderr = _sync_in_process(dry_run=dry_run)
             self._send_json({
-                "returncode": proc.returncode,
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
+                "returncode": rc,
+                "stdout": stdout,
+                "stderr": stderr,
                 "dry-run": dry_run,
             })
         except Exception as e:
@@ -293,21 +321,13 @@ class Handler(BaseHTTPRequestHandler):
                           HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
-        # 调用 model-sync.py --import-selected
-        args = [PYTHON_EXE, MODEL_SYNC_PY, "--import-selected"]
+        # 打包适配：进程内调用 model-sync.import_selected()
         try:
-            proc = subprocess.run(
-                args,
-                capture_output=True,
-                text=True,
-                timeout=60,
-                encoding="utf-8",
-                errors="replace",
-            )
+            rc, stdout, stderr = _sync_in_process(dry_run=False, import_selected=True)
             self._send_json({
-                "returncode": proc.returncode,
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
+                "returncode": rc,
+                "stdout": stdout,
+                "stderr": stderr,
                 "selected_count": len(selected),
             })
         except Exception as e:
@@ -795,21 +815,43 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    # 打包后首次运行：把内置的默认服务商模板拷贝到 exe 目录，作为可编辑配置的种子
+    if FROZEN and RES_DIR != APP_DIR and not PROVIDERS_JSON_PATH.exists():
+        seeded = RES_DIR / "model-providers.json"
+        if seeded.exists():
+            import shutil
+            try:
+                PROVIDERS_JSON_PATH.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(seeded, PROVIDERS_JSON_PATH)
+            except Exception:
+                pass
+
     parser = argparse.ArgumentParser(description="WorkBuddy model-sync 后端服务")
     parser.add_argument("--host", default="127.0.0.1", help="监听地址")
     parser.add_argument("--port", type=int, default=7788, help="监听端口")
     args = parser.parse_args()
 
+    # 打包后无等待式启动，稍后自动打开浏览器（复刻 start.pyw 的体验）
+    if FROZEN:
+        def _open_later(port: int) -> None:
+            time.sleep(1.0)
+            try:
+                webbrowser.open(f"http://127.0.0.1:{port}/")
+            except Exception:
+                pass
+        threading.Thread(target=_open_later, args=(args.port,), daemon=True).start()
+
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"model-sync 服务启动")
-    print(f"  本机地址: http://127.0.0.1:{args.port}/")
-    print(f"  提供商配置: {PROVIDERS_JSON_PATH}")
-    print(f"  目标输出: {MODELS_JSON_PATH}")
-    print(f"  按 Ctrl+C 退出")
+    log = lambda m: print(m) if sys.stdout is not None else None
+    log("model-sync 服务启动")
+    log(f"  本机地址: http://127.0.0.1:{args.port}/")
+    log(f"  提供商配置: {PROVIDERS_JSON_PATH}")
+    log(f"  目标输出: {MODELS_JSON_PATH}")
+    log(f"  按 Ctrl+C 退出")
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        print("\n关闭中 ...")
+        log("\n关闭中 ...")
         srv.shutdown()
 
 
